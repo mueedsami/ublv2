@@ -1,0 +1,73 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+
+type BasepackRow={stock_date:string;packsize:string;brands:string[]|null;categories:string[]|null;stock_qty:number;is_available:boolean;mtd_sold_qty:number;monthly_sold_qty:number};
+type DailyRow={stock_date:string;expected_basepacks:number;available_basepacks:number;unavailable_basepacks:number;ola_pct:number|null;total_stock:number};
+type MonthlyOla={month_start:string;days_with_data:number;avg_ola_pct:number|null;min_ola_pct:number|null;max_ola_pct:number|null;first_stock_date:string;last_stock_date:string};
+type SnapshotRow={period_start:string;period_end:string;source_sheet:string;is_complete_month:boolean;sku_rows:number;sold_qty:number;sales_value:number};
+type MonthlySalesRow={month_start:string;month_end:string;source_sheet:string;sku_rows:number;sold_qty:number;total_product_cost:number;total_amount:number};
+type FlagRow={stock_date:string;previous_stock_date:string|null;packsize:string;brands:string[]|null;business_groups:string[]|null;categories:string[]|null;sub_categories:string[]|null;stock_qty:number;previous_stock_qty:number|null;mtd_sold_qty:number;run_rate:number;days_of_cover:number|null;stock_value:number;sales_value:number;period_start:string|null;period_end:string|null;current_month_sold_qty:number;current_month_period_end:string|null;previous_month_sold_qty:number;previous_month_period_end:string|null;current_month_daily_pace:number;previous_month_daily_pace:number;present_sku_rows:number;flag_type:string;severity:'critical'|'warning'|'watch'|'positive';reason:string;priority:number};
+type FlagSummary={stock_date:string;total_flags:number;critical_flags:number;warning_flags:number;watch_flags:number;positive_flags:number;flagged_basepacks:number};
+type Tab='overview'|'stock'|'mtd'|'monthly-sales'|'daily'|'monthly-ola'|'flags';
+const TABS:Array<{key:Tab;label:string}>=[{key:'overview',label:'Overview'},{key:'stock',label:'Current Stock'},{key:'mtd',label:'MTD Sales Snapshots'},{key:'monthly-sales',label:'Monthly Sales'},{key:'daily',label:'Daily OLA'},{key:'monthly-ola',label:'Monthly OLA'},{key:'flags',label:'Flags'}];
+const pct=(v:number|null|undefined)=>v==null?'—':`${Number(v).toFixed(2)}%`;
+const num=(v:number|null|undefined)=>v==null?'—':Number(v).toLocaleString();
+const money=(v:number|null|undefined)=>v==null?'—':`৳${Number(v).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+const date=(v:string|null|undefined)=>!v?'—':new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(`${v}T00:00:00`));
+const month=(v:string)=>new Intl.DateTimeFormat('en-GB',{month:'short',year:'numeric'}).format(new Date(`${v}T00:00:00`));
+const join=(v:string[]|null)=>v?.length?v.join(' · '):'—';
+
+export default function OthobaPanel(){
+ const[current,setCurrent]=useState<BasepackRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[monthly,setMonthly]=useState<MonthlyOla[]>([]),[snapshots,setSnapshots]=useState<SnapshotRow[]>([]),[monthlySales,setMonthlySales]=useState<MonthlySalesRow[]>([]),[flags,setFlags]=useState<FlagRow[]>([]);
+ const[flagSummary,setFlagSummary]=useState<FlagSummary|null>(null),[severityFilter,setSeverityFilter]=useState<'all'|FlagRow['severity']>('all'),[flagTypeFilter,setFlagTypeFilter]=useState('all'),[flagSearch,setFlagSearch]=useState('');
+ const[tab,setTab]=useState<Tab>('overview'),[loading,setLoading]=useState(true),[error,setError]=useState('');
+ async function load(){setLoading(true);setError('');try{const r=await fetch('/api/othoba',{cache:'no-store'});const j=await r.json();if(!r.ok)throw new Error(j.error||'Failed to load Othoba intelligence.');setCurrent(j.current||[]);setDaily(j.daily||[]);setMonthly(j.monthly||[]);setSnapshots(j.salesSnapshots||[]);setMonthlySales(j.monthlySales||[]);setFlags(j.flags||[]);setFlagSummary(j.flagSummary||null);}catch(e){setError(e instanceof Error?e.message:'Failed to load Othoba intelligence.');}finally{setLoading(false)}}
+ useEffect(()=>{void load()},[]);
+ const latest=daily[0]??null, currentMonth=monthly[0]??null, latestSnapshot=snapshots[0]??null, latestMonthly=monthlySales[0]??null;
+ const top=useMemo(()=>[...current].sort((a,b)=>Number(b.mtd_sold_qty)-Number(a.mtd_sold_qty)).slice(0,10),[current]);
+ const flagTypes=useMemo(()=>Array.from(new Set(flags.map(r=>r.flag_type))).sort(),[flags]);
+ const visibleFlags=useMemo(()=>{const q=flagSearch.trim().toLowerCase();return flags.filter(r=>(severityFilter==='all'||r.severity===severityFilter)&&(flagTypeFilter==='all'||r.flag_type===flagTypeFilter)&&(!q||r.packsize.toLowerCase().includes(q)||join(r.brands).toLowerCase().includes(q)||r.flag_type.toLowerCase().includes(q)));},[flags,severityFilter,flagTypeFilter,flagSearch]);
+ return <div className="pandamart-dashboard">
+  <div className="pandamart-tabbar"><div className="pandamart-tabs" role="tablist">{TABS.map(t=><button key={t.key} type="button" role="tab" aria-selected={tab===t.key} className={tab===t.key?'active':''} onClick={()=>setTab(t.key)}>{t.label}</button>)}</div><button className="button secondary compact" onClick={()=>void load()} disabled={loading}><RefreshCw size={15}/>{loading?'Loading':'Refresh'}</button></div>
+  {error&&<div className="alert error pandamart-alert">{error}</div>}
+  {loading&&!latest?<section className="card"><div className="empty">Loading Othoba intelligence…</div></section>:null}
+  {!loading&&!latest&&!error?<section className="card"><div className="empty">No Othoba history yet. Upload an Othoba workbook and choose the stock date.</div></section>:null}
+  {latest&&tab==='overview'&&<><section className="kpi-grid pandamart-kpis">
+   <div className="kpi"><span>Current OLA</span><strong>{pct(latest.ola_pct)}</strong><small>{latest.available_basepacks}/{latest.expected_basepacks} basepacks available</small></div>
+   <div className="kpi"><span>Stock date</span><strong className="date-kpi">{date(latest.stock_date)}</strong><small>{num(latest.total_stock)} mapped stock units</small></div>
+   <div className="kpi"><span>Current MTD sold</span><strong>{num(latestSnapshot?.sold_qty)}</strong><small>{latestSnapshot?`${date(latestSnapshot.period_start)} → ${date(latestSnapshot.period_end)}`:'No snapshot'}</small></div>
+   <div className="kpi"><span>Latest monthly sales</span><strong>{num(latestMonthly?.sold_qty)}</strong><small>{latestMonthly?month(latestMonthly.month_start):'No monthly sales'}</small></div>
+  </section><section className="card"><div className="card-head"><div><h2>Othoba data rule</h2><p>One workbook contains operational snapshots and detailed monthly sales history.</p></div></div><div className="pandamart-rule-grid"><div><strong>Stock X</strong><p>Only the Sales & Stock sheet matching the selected stock month drives current stock and OLA.</p></div><div><strong>MTD snapshots</strong><p>All Sales & Stock sheets keep their stated 1–N day sales periods and values.</p></div><div><strong>Monthly sales</strong><p>Sales Report sheets are aggregated by SKU because one SKU can appear at multiple selling prices.</p></div></div></section>
+  {top.length>0&&<section className="card"><div className="card-head"><div><h2>Top current basepacks by MTD sales</h2></div></div><div className="table-wrap"><table><thead><tr><th>Basepack</th><th>Brand</th><th>Stock</th><th>MTD sold</th><th>Monthly sold</th><th>Status</th></tr></thead><tbody>{top.map(r=><tr key={r.packsize}><td><strong>{r.packsize}</strong></td><td>{join(r.brands)}</td><td>{num(r.stock_qty)}</td><td><strong>{num(r.mtd_sold_qty)}</strong></td><td>{num(r.monthly_sold_qty)}</td><td><span className={`status ${r.is_available?'available':'oos'}`}>{r.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div></section>}</>}
+  {latest&&tab==='stock'&&<section className="card"><div className="card-head"><div><h2>Current basepack stock</h2><p>{date(latest.stock_date)}</p></div></div><div className="table-wrap"><table><thead><tr><th>Basepack</th><th>Brand</th><th>Category</th><th>Stock</th><th>MTD sold</th><th>Status</th></tr></thead><tbody>{current.map(r=><tr key={r.packsize}><td><strong>{r.packsize}</strong></td><td>{join(r.brands)}</td><td>{join(r.categories)}</td><td>{num(r.stock_qty)}</td><td>{num(r.mtd_sold_qty)}</td><td><span className={`status ${r.is_available?'available':'oos'}`}>{r.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div></section>}
+  {latest&&tab==='mtd'&&<section className="card"><div className="card-head"><div><h2>Sales & Stock report history</h2><p>Month-to-date snapshots exactly as supplied by Othoba.</p></div></div><div className="table-wrap"><table><thead><tr><th>Period</th><th>Sheet</th><th>SKUs</th><th>Sold qty</th><th>Sales value</th><th>Status</th></tr></thead><tbody>{snapshots.map(r=><tr key={`${r.source_sheet}-${r.period_end}`}><td><strong>{date(r.period_start)} → {date(r.period_end)}</strong></td><td>{r.source_sheet}</td><td>{r.sku_rows}</td><td>{num(r.sold_qty)}</td><td>{money(r.sales_value)}</td><td>{r.is_complete_month?'Complete':'Partial'}</td></tr>)}</tbody></table></div></section>}
+  {latest&&tab==='monthly-sales'&&<section className="card"><div className="card-head"><div><h2>Detailed monthly sales</h2><p>Duplicate rows for the same SKU are consolidated into a single monthly SKU total.</p></div></div><div className="table-wrap"><table><thead><tr><th>Month</th><th>Sheet</th><th>SKUs</th><th>Sold qty</th><th>Product cost</th><th>Sales amount</th></tr></thead><tbody>{monthlySales.map(r=><tr key={r.month_start}><td><strong>{month(r.month_start)}</strong></td><td>{r.source_sheet}</td><td>{r.sku_rows}</td><td><strong>{num(r.sold_qty)}</strong></td><td>{money(r.total_product_cost)}</td><td>{money(r.total_amount)}</td></tr>)}</tbody></table></div></section>}
+  {latest&&tab==='daily'&&<section className="card"><div className="card-head"><div><h2>Daily OLA observations</h2></div></div><div className="table-wrap"><table><thead><tr><th>Stock date</th><th>Available</th><th>Out</th><th>Expected</th><th>OLA</th><th>Stock</th></tr></thead><tbody>{daily.map(r=><tr key={r.stock_date}><td><strong>{date(r.stock_date)}</strong></td><td>{r.available_basepacks}</td><td>{r.unavailable_basepacks}</td><td>{r.expected_basepacks}</td><td><strong>{pct(r.ola_pct)}</strong></td><td>{num(r.total_stock)}</td></tr>)}</tbody></table></div></section>}
+  {latest&&tab==='monthly-ola'&&<section className="card"><div className="card-head"><div><h2>Monthly OLA history</h2></div></div><div className="table-wrap"><table><thead><tr><th>Month</th><th>Observed days</th><th>Avg OLA</th><th>Low</th><th>High</th><th>Window</th></tr></thead><tbody>{monthly.map(r=><tr key={r.month_start}><td><strong>{month(r.month_start)}</strong></td><td>{r.days_with_data}</td><td><strong>{pct(r.avg_ola_pct)}</strong></td><td>{pct(r.min_ola_pct)}</td><td>{pct(r.max_ola_pct)}</td><td>{date(r.first_stock_date)} – {date(r.last_stock_date)}</td></tr>)}</tbody></table></div></section>}
+  {latest&&tab==='flags'&&<>
+   <section className="kpi-grid pandamart-kpis">
+    <div className="kpi"><span>Flagged basepacks</span><strong>{flagSummary?.flagged_basepacks??0}</strong><small>{flagSummary?.total_flags??0} active Othoba flags</small></div>
+    <div className="kpi"><span>Critical</span><strong>{flagSummary?.critical_flags??0}</strong><small>OOS demand risk or ≤7 days cover</small></div>
+    <div className="kpi"><span>Warnings</span><strong>{flagSummary?.warning_flags??0}</strong><small>Low cover, sales slowdown or high-value stagnant stock</small></div>
+    <div className="kpi"><span>Positive</span><strong>{flagSummary?.positive_flags??0}</strong><small>Sales surge or availability recovery</small></div>
+   </section>
+   <section className="card">
+    <div className="card-head"><div><h2>Othoba flags</h2><p>Commercial and availability flags built from the latest Sales & Stock snapshot plus the monthly sales history.</p></div></div>
+    <div className="central-filter-grid" style={{marginBottom:14}}>
+     <label><span>Severity</span><select value={severityFilter} onChange={e=>setSeverityFilter(e.target.value as any)}><option value="all">All severities</option><option value="critical">Critical</option><option value="warning">Warning</option><option value="watch">Watch</option><option value="positive">Positive</option></select></label>
+     <label><span>Flag</span><select value={flagTypeFilter} onChange={e=>setFlagTypeFilter(e.target.value)}><option value="all">All flag types</option>{flagTypes.map(t=><option key={t} value={t}>{t.replaceAll('_',' ')}</option>)}</select></label>
+     <label><span>Search</span><input value={flagSearch} onChange={e=>setFlagSearch(e.target.value)} placeholder="Basepack or brand" /></label>
+    </div>
+    {visibleFlags.length?<div className="table-wrap"><table><thead><tr><th>Severity</th><th>Flag</th><th>Basepack</th><th>Brand</th><th>Stock</th><th>MTD sold</th><th>Run rate</th><th>Days cover</th><th>Stock value</th><th>Current pace</th><th>Previous pace</th><th>Reason</th></tr></thead><tbody>{visibleFlags.map((r,i)=><tr key={`${r.packsize}-${r.flag_type}-${i}`}><td><span className={`flag-pill ${r.severity}`}>{r.severity}</span></td><td><strong>{r.flag_type.replaceAll('_',' ')}</strong></td><td>{r.packsize}</td><td>{join(r.brands)}</td><td>{num(r.stock_qty)}</td><td>{num(r.mtd_sold_qty)}</td><td>{Number(r.run_rate||0).toFixed(2)}</td><td>{r.days_of_cover==null?'—':Number(r.days_of_cover).toFixed(1)}</td><td>{money(r.stock_value)}</td><td>{Number(r.current_month_daily_pace||0).toFixed(2)}/day</td><td>{Number(r.previous_month_daily_pace||0).toFixed(2)}/day</td><td>{r.reason}</td></tr>)}</tbody></table></div>:<div className="empty">No Othoba flags match these filters.</div>}
+   </section>
+   <section className="card"><div className="card-head"><div><h2>Othoba flag logic</h2><p>These rules intentionally use Othoba-specific fields rather than copying another account.</p></div></div><div className="pandamart-rule-grid">
+    <div><strong>Availability risk</strong><p>OOS is escalated when MTD sales exist. ≤7 days of cover is critical; 8–14 days is warning, using Othoba run rate.</p></div>
+    <div><strong>Inventory efficiency</strong><p>High-value stock with zero MTD sales is flagged, while 60+ days of cover with meaningful value is marked as a slow-moving overstock watch.</p></div>
+    <div><strong>Sales momentum</strong><p>Current-month daily pace is compared with the previous month. A drop below 50% becomes warning; a 50%+ surge with meaningful volume becomes positive.</p></div>
+    </div>
+   </section>
+  </>}
+ </div>;
+}

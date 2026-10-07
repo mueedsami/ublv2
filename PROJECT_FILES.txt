@@ -1,0 +1,44 @@
+UBL Availability V2.3 — Core files
+
+app/
+  page.tsx
+  globals.css
+  master/page.tsx
+  uploads/page.tsx
+  api/availability/route.ts
+  api/master/preview/route.ts
+  api/master/commit/route.ts
+  api/master/route.ts
+  api/stock/inspect/route.ts
+  api/stock/preview/route.ts
+  api/stock/commit/route.ts
+  api/pandamart/route.ts
+
+components/
+  AppShell.tsx
+  AvailabilityDashboard.tsx
+  MasterView.tsx
+  UploadCenter.tsx
+  PandamartPanel.tsx
+
+lib/
+  accounts.ts
+  excel.ts
+  master-parser.ts
+  stock-parser.ts
+  supabase-admin.ts
+  types.ts
+
+supabase/
+  schema.sql
+  migrations/20261006_basepack_hierarchy_and_filters_v21.sql
+  migrations/20261006_pandamart_daily_history_v23.sql
+
+docs/
+  architecture.md
+  current-master-profile.md
+  EXCEL_READER_FIX.md
+  PANDAMART_DAILY_STOCK_PROFILE.md
+  PANDAMART_V23_HISTORY_AND_FLAGS.md
+  V2.1_DATABASE_NOTE.md
+  V2.1.1_MASTER_COMMIT_FIX.md
