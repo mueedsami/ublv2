@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ACCOUNTS } from '@/lib/accounts';
-import { CheckCircle2, FileSpreadsheet, UploadCloud } from 'lucide-react';
+import { CheckCircle2, DollarSign, FileSpreadsheet, UploadCloud } from 'lucide-react';
 
 type MasterPreview = {
   sheetName: string;
@@ -14,6 +14,39 @@ type MasterPreview = {
   mappingCount: number;
   duplicateAccountIds: number;
   accountCounts: Record<string, number>;
+};
+
+
+type CppPreview = {
+  valid: boolean;
+  account: { id: string; code: string; name: string };
+  fileName: string;
+  profileName: string;
+  profileNote: string;
+  detectedSheets: string[];
+  effectiveFrom: string;
+  effectiveTo: string;
+  tolerancePct: number;
+  sourceRows: number;
+  targets: number;
+  scrapableTargets: number;
+  mappedToMaster: number;
+  unmappedRows: number;
+  nonScrapableRows: number;
+  fuzzyMatches: number;
+  warnings: string[];
+  sample: Array<{
+    sourceIdentifier: string;
+    accountSku: string;
+    productName: string;
+    sourcePacksize: string;
+    expectedPrice: number;
+    mrp: number | string;
+    supportAmount: number | string;
+    mappingStatus: string;
+    matchScore: number | string;
+    scrapable: boolean;
+  }>;
 };
 
 type InspectedSheet = {
@@ -82,14 +115,112 @@ function todayLocal() {
 
 export default function UploadCenter() {
   const params = useSearchParams();
-  const initialTab = params.get('tab') === 'master' ? 'master' : 'stock';
-  const [tab, setTab] = useState<'stock' | 'master'>(initialTab);
+  const requestedTab = params.get('tab');
+  const initialTab = requestedTab === 'master' ? 'master' : requestedTab === 'cpp' ? 'cpp' : 'stock';
+  const [tab, setTab] = useState<'stock' | 'cpp' | 'master'>(initialTab);
 
   return <div className="page">
-    <div className="page-head"><div><span className="eyebrow">Only two uploads</span><h1>Uploads</h1><p>Upload the source-of-truth master when mappings change. Upload account stock/sales files whenever they arrive; their actual stock dates are preserved.</p></div></div>
-    <div className="segment-tabs"><button className={tab==='stock'?'active':''} onClick={()=>setTab('stock')}>Daily Stock</button><button className={tab==='master'?'active':''} onClick={()=>setTab('master')}>Master Data</button></div>
-    {tab === 'stock' ? <StockUpload /> : <MasterUpload />}
+    <div className="page-head"><div><h1>Uploads</h1><p>Load daily stock/sales observations, monthly CPP reference prices, or replace the source-of-truth master when mappings change.</p></div></div>
+    <div className="segment-tabs">
+      <button className={tab==='stock'?'active':''} onClick={()=>setTab('stock')}>Daily Stock</button>
+      <button className={tab==='cpp'?'active':''} onClick={()=>setTab('cpp')}>CPP Reference</button>
+      <button className={tab==='master'?'active':''} onClick={()=>setTab('master')}>Master Data</button>
+    </div>
+    {tab === 'stock' ? <StockUpload /> : tab === 'cpp' ? <CppUpload /> : <MasterUpload />}
   </div>;
+}
+
+
+function CppUpload() {
+  const supported = [
+    { code: 'daraz', name: 'Daraz' },
+    { code: 'shajgoj', name: 'Shajgoj' },
+  ];
+  const [accountCode, setAccountCode] = useState('daraz');
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<CppPreview | null>(null);
+  const [effectiveFrom, setEffectiveFrom] = useState('');
+  const [effectiveTo, setEffectiveTo] = useState('');
+  const [tolerancePct, setTolerancePct] = useState('1');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  async function submit(mode: 'preview' | 'commit') {
+    if (!file) return;
+    setBusy(true); setError(''); if (mode === 'preview') setSuccess('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('account', accountCode);
+      fd.append('tolerancePct', tolerancePct || '1');
+      if (effectiveFrom) fd.append('effectiveFrom', effectiveFrom);
+      if (effectiveTo) fd.append('effectiveTo', effectiveTo);
+      if (mode === 'preview') fd.append('preview', 'true');
+      else fd.append('confirmed', 'true');
+      const res = await fetch('/api/cpp/reference', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'CPP upload failed.');
+      if (mode === 'preview') {
+        setPreview(json);
+        if (!effectiveFrom && json.effectiveFrom) setEffectiveFrom(json.effectiveFrom);
+        if (!effectiveTo && json.effectiveTo) setEffectiveTo(json.effectiveTo);
+      } else {
+        setSuccess(`${json.account.name} CPP activated: ${json.result.rows_total} rows, ${json.result.rows_scrapable} scrapable targets, ${json.result.rows_mapped} mapped to master.`);
+        setPreview(null);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'CPP upload failed.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function resetForAccount(code: string) {
+    setAccountCode(code);
+    setFile(null);
+    setPreview(null);
+    setEffectiveFrom('');
+    setEffectiveTo('');
+    setError('');
+    setSuccess('');
+  }
+
+  return <section className="card upload-card">
+    <div className="card-head"><div><h2>CPP reference price upload</h2><p>Upload the monthly approved price file. A new commit becomes the live CPP set for that account; the previous set remains in history.</p></div></div>
+    {error && <div className="alert error">{error}</div>}
+    {success && <div className="alert success"><CheckCircle2 size={17}/>{success}</div>}
+
+    <div className="form-grid two">
+      <label><span>Account</span><select value={accountCode} onChange={(e)=>resetForAccount(e.target.value)}>{supported.map((a)=><option key={a.code} value={a.code}>{a.name}</option>)}</select></label>
+      <label><span>Allowed tolerance above CPP (%)</span><input type="number" min="0" max="100" step="0.1" value={tolerancePct} onChange={(e)=>{setTolerancePct(e.target.value);setPreview(null);}}/></label>
+    </div>
+
+    <div className="alert success"><DollarSign size={17}/><div><strong>{accountCode === 'daraz' ? 'Daraz rule' : 'Shajgoj rule'}</strong><div>{accountCode === 'daraz' ? 'Expected CPP = MRP − October Backmargin. Daraz SKU is read directly from the workbook.' : 'Expected CPP = Selling Price. Shajgoj SKU is resolved from the current master using Packsize/product matching.'}</div></div></div>
+
+    <label className="dropzone"><FileSpreadsheet size={26}/><strong>{file?.name || `Choose ${accountCode === 'daraz' ? 'Daraz' : 'Shajgoj'} CPP workbook`}</strong><span>Excel .xlsx</span><input type="file" accept=".xlsx" onChange={(e)=>{setFile(e.target.files?.[0]||null);setPreview(null);setSuccess('');setError('');setEffectiveFrom('');setEffectiveTo('');}}/></label>
+    <div className="action-row"><button className="button" disabled={!file||busy} onClick={()=>void submit('preview')}>{busy?'Reading…':'Preview CPP file'}</button></div>
+
+    {preview && <div className="preview-panel">
+      <div className="alert success"><CheckCircle2 size={17}/><div><strong>{preview.profileName}</strong><div>{preview.profileNote}</div></div></div>
+      <div className="form-grid two">
+        <label><span>Effective from</span><input type="date" value={effectiveFrom} onChange={(e)=>setEffectiveFrom(e.target.value)}/></label>
+        <label><span>Effective to</span><input type="date" value={effectiveTo} onChange={(e)=>setEffectiveTo(e.target.value)}/></label>
+      </div>
+      <div className="preview-grid">
+        <div><span>Source rows</span><strong>{preview.sourceRows}</strong></div>
+        <div><span>Scrapable targets</span><strong>{preview.scrapableTargets}</strong></div>
+        <div><span>Mapped to master</span><strong>{preview.mappedToMaster}</strong></div>
+        <div><span>Unmapped</span><strong>{preview.unmappedRows}</strong></div>
+        <div><span>Non-scrapable</span><strong>{preview.nonScrapableRows}</strong></div>
+        <div><span>Fuzzy matches</span><strong>{preview.fuzzyMatches}</strong></div>
+      </div>
+      {preview.warnings.map((warning)=><div className="alert warning" key={warning}>{warning}</div>)}
+      <div className="sample-block"><strong>Preview sample</strong><div className="table-wrap mini"><table><thead><tr><th>Source</th><th>Marketplace SKU</th><th>Product</th><th>CPP</th><th>Mapping</th><th>Scrapable</th></tr></thead><tbody>{preview.sample.slice(0,12).map((row,i)=><tr key={`${row.sourceIdentifier}-${i}`}><td>{row.sourceIdentifier}</td><td>{row.accountSku||'—'}</td><td>{row.productName||row.sourcePacksize||'—'}</td><td><strong>{row.expectedPrice.toFixed(2)}</strong></td><td>{row.mappingStatus}{row.matchScore!==''&&row.matchScore!==1?` (${row.matchScore})`:''}</td><td>{row.scrapable?'Yes':'No'}</td></tr>)}</tbody></table></div></div>
+      <p className="muted">Unmapped rows are preserved in the reference set. Only rows with a resolved marketplace SKU are made available to the scraper.</p>
+      <button className="button danger-safe" disabled={busy||!preview.valid} onClick={()=>void submit('commit')}><UploadCloud size={17}/>Activate CPP reference set</button>
+    </div>}
+  </section>;
 }
 
 function MasterUpload() {

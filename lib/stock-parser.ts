@@ -871,7 +871,6 @@ function darazColumns(worksheet: import('./excel').WorksheetData) {
   const nisIndex = normalized.findIndex((v) => v === 'nis');
 
   if (skuIndex < 0) throw new Error(`Daraz sheet "${worksheet.name}" is missing daraz_sku.`);
-  if (statusIndex < 0) throw new Error(`Daraz sheet "${worksheet.name}" is missing sku_status_details.`);
   if (stockIndex < 0) throw new Error(`Daraz sheet "${worksheet.name}" is missing Total - Stock.`);
   if (valuationIndex < 0) throw new Error(`Daraz sheet "${worksheet.name}" is missing Stock Valuation.`);
 
@@ -882,7 +881,7 @@ function findDarazSheet(workbook: import('./excel').WorkbookData) {
   for (const sheet of workbook.worksheets) {
     try { darazColumns(sheet); return sheet; } catch { /* scan next */ }
   }
-  throw new Error('No Daraz sheet with daraz_sku, sku_status_details, Total - Stock and Stock Valuation was found.');
+  throw new Error('No Daraz sheet with daraz_sku, Total - Stock and Stock Valuation was found.');
 }
 
 async function resolveDarazProfile(buffer: Buffer, stockDate?: string): Promise<ResolvedStockConfig> {
@@ -890,6 +889,7 @@ async function resolveDarazProfile(buffer: Buffer, stockDate?: string): Promise<
   const workbook = await loadWorkbook(buffer);
   const worksheet = findDarazSheet(workbook);
   const columns = darazColumns(worksheet);
+  const hasStatusColumn = columns.statusIndex >= 0;
   return {
     config: {
       sheetName: worksheet.name,
@@ -900,9 +900,11 @@ async function resolveDarazProfile(buffer: Buffer, stockDate?: string): Promise<
     },
     snapshotDate: null,
     locked: true,
-    profileName: 'Daraz mapped Normal-SKU stock + movement',
-    note: `Only rows where ${columns.labels[columns.statusIndex]} = Normal are imported. ${columns.labels[columns.stockIndex]} and ${columns.labels[columns.valuationIndex]} are stored for ${stockDate}. OLA and movement KPIs use only Daraz IDs present in the active master. Stock decreases are labelled implied depletion, not confirmed sales.`,
-    excludedColumns: ['Non-Normal SKU rows'],
+    profileName: hasStatusColumn ? 'Daraz mapped Normal-SKU stock + movement' : 'Daraz compact DOD stock + movement',
+    note: hasStatusColumn
+      ? `Only rows where ${columns.labels[columns.statusIndex]} = Normal are imported. ${columns.labels[columns.stockIndex]} and ${columns.labels[columns.valuationIndex]} are stored for ${stockDate}. OLA and movement KPIs use only Daraz IDs present in the active master. Stock decreases are labelled implied depletion, not confirmed sales.`
+      : `This Daraz DOD export does not include sku_status_details. All SKU rows are ingested as raw observations, while OLA and movement KPIs remain restricted to Daraz IDs present in the active master. Non-master rows therefore cannot change OLA or mapped movement KPIs. ${columns.labels[columns.stockIndex]} and ${columns.labels[columns.valuationIndex]} are stored for ${stockDate}.`,
+    excludedColumns: hasStatusColumn ? ['Non-Normal SKU rows'] : [],
     excludedUnits: 0,
   };
 }
@@ -922,8 +924,12 @@ export async function parseDarazWorkbook(buffer: Buffer, stockDate: string): Pro
     const sku = valueText(row[c.skuIndex]).trim();
     if (!sku) continue;
     stockInputRows++;
-    const status = valueText(row[c.statusIndex]).trim().toLowerCase();
-    if (status !== 'normal') { ignoredNonNormalRows++; continue; }
+    if (c.statusIndex >= 0) {
+      const status = valueText(row[c.statusIndex]).trim().toLowerCase();
+      if (status !== 'normal') { ignoredNonNormalRows++; continue; }
+    }
+    // Compact Daraz DOD exports may omit sku_status_details entirely. In that case
+    // keep the raw observation and let the active V2 master remain the business/KPI scope.
     normalInputRows++;
     const itemName = c.nameIndex >= 0 ? valueText(row[c.nameIndex]).trim() || null : null;
     const item: import('./types').DarazStockRow = {
@@ -961,7 +967,7 @@ export async function parseDarazWorkbook(buffer: Buffer, stockDate: string): Pro
     skuColumn: c.labels[c.skuIndex],
     stockColumn: c.labels[c.stockIndex],
     valuationColumn: c.labels[c.valuationIndex],
-    statusColumn: c.labels[c.statusIndex],
+    statusColumn: c.statusIndex >= 0 ? c.labels[c.statusIndex] : 'Not provided — active master controls KPI scope',
     networkRows,
     stockRows,
     stockInputRows,

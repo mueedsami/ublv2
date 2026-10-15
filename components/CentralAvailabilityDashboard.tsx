@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { LayoutGrid, RefreshCw, RotateCcw, Search, SlidersHorizontal, TableProperties } from 'lucide-react';
+import { Download, LayoutGrid, RefreshCw, RotateCcw, Search, SlidersHorizontal, TableProperties } from 'lucide-react';
+import { exportCsv } from '@/lib/csv-export';
 
 type CentralRow = {
   account_code: string;
@@ -65,6 +66,7 @@ export default function CentralAvailabilityDashboard() {
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [search, setSearch] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all'|'available'|'unavailable'>('all');
   const [tab, setTab] = useState<'overview'|'pivot'>('overview');
   const [pivotDimension, setPivotDimension] = useState<PivotDimension>('brandBasepack');
   const [loading, setLoading] = useState(true);
@@ -102,13 +104,15 @@ export default function CentralAvailabilityDashboard() {
       if (filters.subCategory !== 'all' && !arr(r.sub_categories).includes(filters.subCategory)) return false;
       if (filters.brand !== 'all' && !arr(r.brands).includes(filters.brand)) return false;
       if (filters.basepack !== 'all' && r.packsize !== filters.basepack) return false;
+      if (availabilityFilter === 'available' && Number(r.availability_score) <= 0) return false;
+      if (availabilityFilter === 'unavailable' && Number(r.availability_score) > 0) return false;
       if (q) {
         const haystack = [r.packsize,...arr(r.brands),...arr(r.business_groups),...arr(r.categories),...arr(r.sub_categories),r.account_name].join(' ').toLowerCase();
         if (!haystack.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, selectedAccounts, filters, search]);
+  }, [rows, selectedAccounts, filters, search, availabilityFilter]);
 
 
   const accountStats = useMemo(() => accounts.filter((a)=>selectedAccounts.includes(a.account_code)).map((a) => {
@@ -167,7 +171,8 @@ export default function CentralAvailabilityDashboard() {
   function toggleAccount(code:string) {
     setSelectedAccounts((current) => current.includes(code) ? (current.length===1?current:current.filter((x)=>x!==code)) : [...current,code]);
   }
-  function reset() { setFilters(EMPTY_FILTERS); setSearch(''); setSelectedAccounts(accounts.map((a)=>a.account_code)); }
+  function reset() { setFilters(EMPTY_FILTERS); setSearch(''); setAvailabilityFilter('all'); setSelectedAccounts(accounts.map((a)=>a.account_code)); }
+  function exportFiltered() { exportCsv(`central-availability-${availabilityFilter}`, filteredRows.map((r)=>({ Account:r.account_name, Date:r.observation_date, Basepack:r.packsize, Brand:arr(r.brands).join(' | '), Business_Unit:arr(r.business_groups).join(' | '), Category:arr(r.categories).join(' | '), Sub_Category:arr(r.sub_categories).join(' | '), Availability:r.availability_score>0?'Available':'Unavailable', Availability_Pct:(Number(r.availability_score)*100).toFixed(2), Stock:r.stock_qty }))); }
   function setFilter<K extends keyof Filters>(key:K,value:string) {
     setFilters((prev) => {
       if (key==='businessGroup') return {...EMPTY_FILTERS,businessGroup:value};
@@ -194,6 +199,7 @@ export default function CentralAvailabilityDashboard() {
     <section className="card central-filter-card">
       <div className="toolbar filter-toolbar">
         <div className="search-box"><Search size={17}/><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search basepack, brand, category or account"/></div>
+        <button className="button secondary compact" onClick={exportFiltered} disabled={!filteredRows.length}><Download size={15}/>Export CSV</button>
         <button className="button secondary compact" onClick={reset}><RotateCcw size={15}/>Reset</button>
       </div>
       <div className="filter-grid central-filter-grid">
@@ -201,6 +207,7 @@ export default function CentralAvailabilityDashboard() {
         <label><span>Category</span><select value={filters.category} onChange={(e)=>setFilter('category',e.target.value)}><option value="all">All categories</option>{categoryOptions.map((v)=><option key={v} value={v}>{v}</option>)}</select></label>
         <label><span>Sub-category</span><select value={filters.subCategory} onChange={(e)=>setFilter('subCategory',e.target.value)}><option value="all">All sub-categories</option>{subCategoryOptions.map((v)=><option key={v} value={v}>{v}</option>)}</select></label>
         <label><span>Brand</span><select value={filters.brand} onChange={(e)=>setFilter('brand',e.target.value)}><option value="all">All brands</option>{brandOptions.map((v)=><option key={v} value={v}>{v}</option>)}</select></label>
+        <label><span>Availability</span><select value={availabilityFilter} onChange={(e)=>setAvailabilityFilter(e.target.value as any)}><option value="all">All products</option><option value="available">Available only</option><option value="unavailable">Unavailable only</option></select></label>
         <label><span>Basepack</span><select value={filters.basepack} onChange={(e)=>setFilter('basepack',e.target.value)}><option value="all">All basepacks</option>{basepackOptions.map((v)=><option key={v} value={v}>{v}</option>)}</select></label>
       </div>
       <div className="account-toggle-row">

@@ -1,6 +1,6 @@
 {
   "name": "ubl-availability-v2",
-  "version": "2.8.0",
+  "version": "2.13.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

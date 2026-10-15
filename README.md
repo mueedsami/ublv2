@@ -1,189 +1,153 @@
-# UBL Availability V2.3
+# Unilever Stock Intelligence — Complete Local Scraper Bundle
 
-A deliberately small availability system:
+This bundle contains the current V2 local scraper worker plus recovered legacy scraper sources.
 
-**Master Data → Daily Stock Dump → Basepack Availability**
+## Current scraper readiness
 
-## Core business model
+| Account | Current V2 adapter | Status |
+|---|---|---|
+| Daraz | Playwright + Daraz search/XHR matching by `itemId_BD-skuId` | Prepared for local smoke test |
+| Pandamart | Foodpanda GraphQL, branch-wise | Prepared for 10 recovered branches |
+| Shajgoj | Shajgoj search API, exact `product_sku` match | Prepared for local smoke test |
+| Othoba | Othoba search/page parser | Prepared; exact matching must be validated with CPP file |
+| Foodi | Placeholder only | NOT IMPLEMENTED — live Foodimart request/API still needs capture |
 
-- `Packsize` = **Basepack** and is the base identity used for availability.
-- `UBL Code` = a SKU/product underneath a basepack.
-- One basepack can have multiple UBL SKUs (regular, CP/promo, etc.).
-- Marketplace/account SKU IDs remain attached to the relevant UBL SKU rows from the master.
-- Availability is rolled up to basepack level: if **any mapped SKU under a basepack has stock > 0**, the basepack is Available for that account.
+### Pandamart recovered branches
 
-On the supplied master workbook:
+Bashundhara, Dhanmondi, Gulshan 1, Gulshan 2, Mirpur 02, Mogbazar, Mohammadpur, Rampura, Uttara, Wari.
 
-- 236 UBL SKU rows
-- 229 unique basepacks (`Packsize`)
-- 1,601 account-ID mappings
+Still pending vendor-ID capture: Mirpur 03, Chittagong 1, Sylhet 2, Khulna, Rajshahi, Lalbagh, Central DC.
 
-## Master fields preserved
+## Recommended workflow for now
 
-The importer reads the exact master structure and stores:
+Run locally -> create CSV -> upload CSV into the Next.js system.
 
-- `UBL Code`
-- `Sku Updated Perfect Name`
-- `Status`
-- `Brand`
-- `TP`
-- `MRP`
-- `SKU`
-- `TYPE OF WEIGHT`
-- `WEIGHT`
-- `BUSINESS GROUP`
-- `Type`
-- `Retail Type`
-- `Packsize` → Basepack
-- `UBL CAT`
-- `Sub Category`
-- `VARIANT`
-- `Description`
-- `Highlights`
-- `Updated Hero Image`
-- all recognized account ID columns
+The current bundle can also write directly to Supabase, but for manual operation use `--no-db --export-csv`.
 
-Recognized account columns:
-`Daraz`, `Pandamart`, `Shajgoj`, `Cartup`, `Othoba`, `Foodimart`, `Chaldal`, `Rokomari`, `Ogerio`, `Chardike`, `Arogga`, `Meena Bazar`, `Shwapno`.
+## 1. Setup on Windows
 
-Blank account cells mean the basepack/SKU is not listed through that master row for the account.
+Open PowerShell/Terminal in this folder and run:
 
-## Availability logic
+```bat
+setup_windows.bat
+```
 
-For a basepack and account:
+Or manually:
 
-- No account ID under any active SKU in that basepack → **Not Listed**
-- Account ID exists but no stock dump has ever been uploaded → **No Data**
-- Any mapped account SKU has stock > 0 in the latest dump → **Available**
-- Listed, but all mapped account SKUs are absent/zero in latest dump → **Out**
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r scraper_worker\requirements.txt
+python -m playwright install chromium
+copy .env.example .env
+```
 
-The KPI denominator is **basepacks**, not SKU rows.
+Fill `.env` with your Supabase URL + backend key if you want to use the current V2 master SKU list as scraper targets.
 
-## Availability filters
+```env
+SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_SECRET_KEY=YOUR_BACKEND_SECRET_KEY
+TIMEZONE=Asia/Dhaka
+SCRAPER_RUN_TIMES=10:00,18:00
+```
 
-The main Availability page can filter by:
+The key stays local. Do not put it in browser code or commit it to GitHub.
 
-- Account
-- Business Group
-- UBL Category
-- Sub Category
-- Brand
-- Basepack (`Packsize`)
-- Type
-- Retail Type
-- Variant
+## 2. Smoke test before a full run
 
-The search box also searches basepack and hierarchy values.
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m scraper_worker.cli --accounts shajgoj --checkpoint manual --target-source master --limit 5 --no-db --export-csv
+python -m scraper_worker.cli --accounts othoba --checkpoint manual --target-source master --limit 5 --no-db --export-csv
+python -m scraper_worker.cli --accounts daraz --checkpoint manual --target-source master --limit 3 --no-db --export-csv
+python -m scraper_worker.cli --accounts pandamart --checkpoint manual --target-source master --limit 2 --no-db --export-csv
+```
 
-## Pages
-
-- `/` — basepack availability matrix + account summary + hierarchy filters
-- `/uploads` — Master Data and Daily Stock only
-- `/master` — read-only basepack/SKU master
-
-## Daily stock workflow
-
-1. Choose account.
-2. Choose stock date.
-3. Upload `.xlsx`.
-4. Choose sheet.
-5. Choose marketplace SKU/Product ID column.
-6. Choose stock column(s).
-7. Preview basepack availability.
-8. Commit.
-
-Duplicate stock rows are aggregated first. Sales columns are ignored.
-
-## Live Supabase project
-
-This project points only to the new separate database:
-
-- Project: `UBL Availability V2`
-- Project ref: `swuogverexpxefenoujq`
-- Region: `ap-south-1`
-- API URL: `https://swuogverexpxefenoujq.supabase.co`
-
-The previous UBL database is not referenced or modified.
-
-The V2.1 basepack schema has already been applied to that new Supabase project.
-
-## Environment
-
-Copy `.env.example` to `.env.local` and set the server secret key for the **new V2 project**:
+Output appears under:
 
 ```text
-SUPABASE_URL=https://swuogverexpxefenoujq.supabase.co
-SUPABASE_SECRET_KEY=...
+scraper_outputs/YYYY-MM-DD/
 ```
 
-## Run
+## 3. Full AM / PM local runs
 
-```bash
-npm install
-npm run dev
+AM:
+
+```bat
+run_am_local.bat
 ```
 
-## Database
+PM:
 
-Seven small tables:
+```bat
+run_pm_local.bat
+```
 
-- `accounts`
-- `basepacks`
-- `products`
-- `product_account_ids`
-- `master_imports`
-- `stock_uploads`
-- `stock_rows`
+These currently run Daraz, Pandamart, Shajgoj and Othoba. Foodi is deliberately excluded until its scraper is implemented.
 
-Primary reporting views:
+Equivalent manual command:
 
-- `v_basepack_availability`
-- `v_account_availability_summary`
-- `v_master_skus`
-- `v_product_availability` (SKU drill-down support)
-- `v_account_mappings`
+```powershell
+python -m scraper_worker.cli --accounts daraz,pandamart,shajgoj,othoba --checkpoint am --target-source master --no-db --export-csv
+```
 
-## Excel reader
+## 4. Fully local target CSV mode
 
-V2.1 keeps the dependency-free Node XLSX reader introduced in 2.0.1. It does not use ExcelJS, `unzipper`, AWS SDK, or SheetJS.
+If you do not want the scraper to read target SKUs from Supabase, use a target CSV:
 
-## V2.1.1 master import fix
+```powershell
+python -m scraper_worker.cli --accounts shajgoj --checkpoint am --target-source csv --targets-csv scraper_worker\targets.example.csv --no-db --export-csv
+```
 
-If you were on V2.1.0 and `/api/master/commit` returned `Master import failed.`, update to V2.1.1. The live V2 Supabase project already has the safe full-master replacement fix.
+This mode needs no Supabase credentials because it neither reads nor writes Supabase.
 
-## V2.2 Pandamart daily stock profile
+## Output CSV columns
 
-Pandamart daily files are now auto-configured. The app uses only `Store Wise Stock T-1 Day`, reads the T-1 date from the workbook, maps by `sku`, sums all customer-facing store stock columns, and explicitly excludes `DC`. See `docs/PANDAMART_DAILY_STOCK_PROFILE.md`.
+- account
+- account_sku
+- product_name
+- live_price
+- original_price
+- in_stock
+- scrape_status
+- branch_code
+- branch_name
+- product_url
+- scraped_at
+- raw_json
 
+These files are intended to become the manual scraper-upload input for the CPP module.
 
-## Pandamart V2.3
-Pandamart daily workbooks now preserve branch-wise stock history and day-wise sales. Branch OLA is stored daily and rolled into monthly history; DC is excluded from OLA but retained for flags. See `docs/PANDAMART_V23_HISTORY_AND_FLAGS.md`.
+## Direct Supabase mode later
 
-## v2.3.1 UI organization
+Remove `--no-db` if you want the worker to create `scraper_runs` and `scraper_price_observations` directly in the current V2 Supabase project.
 
-Pandamart intelligence now has its own `/pandamart` sidebar page. The existing Pandamart data is split into in-page tabs: Overview, Branch OLA, Flags, Daily History, and Monthly History. This release changes UI organization only; no database, API, parser, upload, OLA, or flag logic changed.
+Example:
 
-## V2.4 — Shajgoj sparse history
+```powershell
+python -m scraper_worker.cli --accounts shajgoj --checkpoint am --target-source master --export-csv
+```
 
-Shajgoj now has a locked workbook profile and dedicated `/shajgoj` drill-down. The upload date represents `Total Stock QTY`; cumulative month-to-date sold quantity is read through X-1. Missing stock dates are not fabricated. Daily/monthly OLA and month-by-month cumulative sales history are stored separately. See `docs/SHAJGOJ_V24_SPARSE_STOCK_SALES.md`.
+This both stores the observations in Supabase and creates the local CSV evidence file.
 
+## Twice-daily scheduler later
 
-## V2.5 Foodi
+After all scrapers are verified, run:
 
-Foodi is now a first-class account intelligence module. A Foodi workbook uses the selected stock date X for `Total Stock`, while `30 Day Sale Qty` is stored as a rolling 30-day sales snapshot ending on X-1. The system preserves sparse observed dates, freezes basepack OLA against the active Foodi master scope at upload time, and exposes current stock, rolling 30-day sales, daily OLA, and monthly OLA views.
+```powershell
+python -m scraper_worker.scheduler
+```
 
-Database objects: `foodi_stock_daily`, `foodi_sales_30d`, `foodi_basepack_daily`, `commit_foodi_upload_v2`, `v_foodi_daily_ola`, `v_foodi_monthly_ola`, `v_foodi_sales_30d_summary`, and `v_foodi_current_basepacks`.
+The default `.env` times are `10:00,18:00` Asia/Dhaka.
 
+## Folder guide
 
-## Othoba V2.6
-Othoba now supports current stock/OLA, Sales & Stock period snapshots, and aggregated detailed monthly sales reports. See `docs/OTHObA_V26_DUAL_SALES.md`.
+- `scraper_worker/` — current V2 scraper worker and account adapters
+- `recovered_originals/` — original legacy marketplace scripts recovered from previous work
+- `legacy_cpp_orchestrator/` — recovered old CPP twice-daily orchestration for reference
+- `supabase/migrations/` — current V2 scraper runtime schema migrations
 
+## Important
 
-## Daraz v2.7
-Dedicated Normal-SKU stock/valuation history, mapped basepack OLA, and observation-to-observation implied depletion/replenishment analytics.
-
-## V2.8 — Central Availability + Pivot
-
-The home dashboard now normalizes Pandamart, Shajgoj, Foodi, Othoba and Daraz into one central basepack layer. It supports cascading Business Unit → Category → Sub-category → Brand → Basepack filters, account toggles, filtered Central OLA, filtered account-wise OLA, a brand summary, lowest-availability exceptions, and a Pivot tab with Brand → Basepack or management rollup dimensions.
-
-Central OLA excludes unmapped account/basepack combinations. Pandamart contributes branch coverage per basepack; the other four account modules contribute binary availability.
+This package does not invent missing scraper integrations. Foodi is still pending, and the additional Pandamart branches require current vendor IDs before they can be automated.

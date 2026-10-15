@@ -2581,3 +2581,970 @@ revoke all on public.v_othoba_flags,public.v_othoba_flag_summary from anon,authe
 grant select on public.v_othoba_flags,public.v_othoba_flag_summary to service_role;
 
 commit;
+
+-- ============================================================
+-- V2.13 — CPP reference uploader
+-- ============================================================
+-- UBL Availability V2.13 — versioned CPP reference uploader
+
+begin;
+
+create table if not exists public.cpp_reference_sets (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  source_file_name text not null,
+  parser_profile text not null,
+  effective_from date not null,
+  effective_to date,
+  status text not null default 'live' check (status in ('live','replaced','closed')),
+  default_tolerance_pct numeric(10,6) not null default 0.01 check (default_tolerance_pct >= 0 and default_tolerance_pct <= 1),
+  rows_total integer not null default 0,
+  rows_scrapable integer not null default 0,
+  rows_mapped integer not null default 0,
+  rows_unmapped integer not null default 0,
+  uploaded_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_cpp_reference_sets_live_account
+  on public.cpp_reference_sets(account_id)
+  where status='live';
+
+create index if not exists idx_cpp_reference_sets_account_date
+  on public.cpp_reference_sets(account_id,effective_from desc,uploaded_at desc);
+
+create table if not exists public.cpp_targets (
+  id uuid primary key default gen_random_uuid(),
+  reference_set_id uuid not null references public.cpp_reference_sets(id) on delete cascade,
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  source_identifier text not null,
+  account_sku text,
+  product_id uuid references public.products(id) on delete set null,
+  basepack_id uuid references public.basepacks(id) on delete set null,
+  source_packsize text,
+  product_name text,
+  brand text,
+  category text,
+  expected_price numeric(14,2) not null check (expected_price >= 0),
+  mrp numeric(14,2),
+  support_amount numeric(14,2),
+  tolerance_pct numeric(10,6) not null default 0.01 check (tolerance_pct >= 0 and tolerance_pct <= 1),
+  mapping_status text not null default 'unmapped'
+    check (mapping_status in ('direct_mapped','direct_unmapped','master_exact','master_fuzzy','unmapped')),
+  match_score numeric(8,5),
+  scrapable boolean not null default false,
+  active boolean not null default true,
+  source_row jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_cpp_target_reference_source
+  on public.cpp_targets(reference_set_id,source_identifier);
+
+create index if not exists idx_cpp_targets_account_sku
+  on public.cpp_targets(account_id,account_sku)
+  where active=true and scrapable=true and account_sku is not null;
+
+create index if not exists idx_cpp_targets_reference
+  on public.cpp_targets(reference_set_id,active);
+
+create or replace view public.v_cpp_master_lookup
+with (security_invoker=true)
+as
+select
+  a.id as account_id,
+  a.code as account_code,
+  a.name as account_name,
+  pai.account_sku,
+  p.id as product_id,
+  p.ubl_code,
+  p.name as product_name,
+  p.basepack_id,
+  b.packsize,
+  p.brand,
+  p.category,
+  p.sub_category,
+  p.business_group
+from public.product_account_ids pai
+join public.accounts a on a.id=pai.account_id and a.active=true
+join public.products p on p.id=pai.product_id and p.status='active'
+join public.basepacks b on b.id=p.basepack_id;
+
+create or replace function public.commit_cpp_reference_set_v2(payload jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_account_id uuid := (payload->>'account_id')::uuid;
+  v_file text := payload->>'source_file_name';
+  v_profile text := payload->>'parser_profile';
+  v_from date := (payload->>'effective_from')::date;
+  v_to date := nullif(payload->>'effective_to','')::date;
+  v_tol numeric := coalesce(nullif(payload->>'default_tolerance_pct','')::numeric,0.01);
+  v_rows jsonb := coalesce(payload->'rows','[]'::jsonb);
+  v_row jsonb;
+  v_set_id uuid;
+  v_total integer := 0;
+  v_scrapable integer := 0;
+  v_mapped integer := 0;
+  v_unmapped integer := 0;
+begin
+  if v_account_id is null then raise exception 'account_id is required'; end if;
+  if coalesce(v_file,'')='' then raise exception 'source_file_name is required'; end if;
+  if coalesce(v_profile,'')='' then raise exception 'parser_profile is required'; end if;
+  if v_from is null then raise exception 'effective_from is required'; end if;
+  if v_to is not null and v_to < v_from then raise exception 'effective_to cannot be earlier than effective_from'; end if;
+  if jsonb_typeof(v_rows) <> 'array' or jsonb_array_length(v_rows)=0 then
+    raise exception 'CPP reference requires at least one row';
+  end if;
+
+  update public.cpp_reference_sets
+  set status='replaced',
+      effective_to=case
+        when effective_from < v_from then v_from - 1
+        else coalesce(effective_to,v_from)
+      end
+  where account_id=v_account_id and status='live';
+
+  insert into public.cpp_reference_sets(
+    account_id,source_file_name,parser_profile,effective_from,effective_to,status,default_tolerance_pct
+  ) values (
+    v_account_id,v_file,v_profile,v_from,v_to,'live',v_tol
+  ) returning id into v_set_id;
+
+  for v_row in select * from jsonb_array_elements(v_rows)
+  loop
+    insert into public.cpp_targets(
+      reference_set_id,account_id,source_identifier,account_sku,product_id,basepack_id,
+      source_packsize,product_name,brand,category,expected_price,mrp,support_amount,
+      tolerance_pct,mapping_status,match_score,scrapable,active,source_row
+    ) values (
+      v_set_id,
+      v_account_id,
+      btrim(v_row->>'source_identifier'),
+      nullif(btrim(v_row->>'account_sku'),''),
+      nullif(v_row->>'product_id','')::uuid,
+      nullif(v_row->>'basepack_id','')::uuid,
+      nullif(v_row->>'source_packsize',''),
+      nullif(v_row->>'product_name',''),
+      nullif(v_row->>'brand',''),
+      nullif(v_row->>'category',''),
+      (v_row->>'expected_price')::numeric,
+      nullif(v_row->>'mrp','')::numeric,
+      nullif(v_row->>'support_amount','')::numeric,
+      coalesce(nullif(v_row->>'tolerance_pct','')::numeric,v_tol),
+      coalesce(nullif(v_row->>'mapping_status',''),'unmapped'),
+      nullif(v_row->>'match_score','')::numeric,
+      coalesce((v_row->>'scrapable')::boolean,false),
+      coalesce((v_row->>'active')::boolean,true),
+      coalesce(v_row->'source_row','{}'::jsonb)
+    );
+    v_total := v_total + 1;
+    if coalesce((v_row->>'scrapable')::boolean,false) then v_scrapable := v_scrapable + 1; end if;
+    if nullif(v_row->>'basepack_id','') is not null or nullif(v_row->>'product_id','') is not null then
+      v_mapped := v_mapped + 1;
+    else
+      v_unmapped := v_unmapped + 1;
+    end if;
+  end loop;
+
+  update public.cpp_reference_sets
+  set rows_total=v_total,rows_scrapable=v_scrapable,rows_mapped=v_mapped,rows_unmapped=v_unmapped
+  where id=v_set_id;
+
+  return jsonb_build_object(
+    'reference_set_id',v_set_id,
+    'rows_total',v_total,
+    'rows_scrapable',v_scrapable,
+    'rows_mapped',v_mapped,
+    'rows_unmapped',v_unmapped,
+    'effective_from',v_from,
+    'effective_to',v_to
+  );
+end;
+$$;
+
+revoke execute on function public.commit_cpp_reference_set_v2(jsonb) from public,anon,authenticated;
+grant execute on function public.commit_cpp_reference_set_v2(jsonb) to service_role;
+
+create or replace view public.v_cpp_live_targets
+with (security_invoker=true)
+as
+select
+  rs.id as reference_set_id,
+  rs.source_file_name,
+  rs.parser_profile,
+  rs.effective_from,
+  rs.effective_to,
+  a.id as account_id,
+  a.code as account_code,
+  a.name as account_name,
+  t.id as target_id,
+  t.source_identifier,
+  t.account_sku,
+  t.product_id,
+  p.ubl_code,
+  t.basepack_id,
+  b.packsize as basepack_name,
+  t.source_packsize,
+  coalesce(t.product_name,p.name) as product_name,
+  coalesce(t.brand,p.brand) as brand,
+  coalesce(t.category,p.category) as category,
+  t.expected_price,
+  t.mrp,
+  t.support_amount,
+  t.tolerance_pct,
+  t.mapping_status,
+  t.match_score,
+  t.scrapable,
+  t.active
+from public.cpp_targets t
+join public.cpp_reference_sets rs on rs.id=t.reference_set_id and rs.status='live'
+join public.accounts a on a.id=t.account_id
+left join public.products p on p.id=t.product_id
+left join public.basepacks b on b.id=t.basepack_id
+where t.active=true;
+
+create or replace view public.v_cpp_scrapable_targets
+with (security_invoker=true)
+as
+select *
+from public.v_cpp_live_targets
+where scrapable=true and account_sku is not null;
+
+create or replace view public.v_cpp_reference_history
+with (security_invoker=true)
+as
+select
+  rs.id as reference_set_id,
+  a.code as account_code,
+  a.name as account_name,
+  rs.source_file_name,
+  rs.parser_profile,
+  rs.effective_from,
+  rs.effective_to,
+  rs.status,
+  rs.default_tolerance_pct,
+  rs.rows_total,
+  rs.rows_scrapable,
+  rs.rows_mapped,
+  rs.rows_unmapped,
+  rs.uploaded_at
+from public.cpp_reference_sets rs
+join public.accounts a on a.id=rs.account_id;
+
+alter table public.cpp_reference_sets enable row level security;
+alter table public.cpp_targets enable row level security;
+
+revoke all on public.cpp_reference_sets,public.cpp_targets,
+              public.v_cpp_master_lookup,public.v_cpp_live_targets,
+              public.v_cpp_scrapable_targets,public.v_cpp_reference_history
+from anon,authenticated;
+
+grant select,insert,update,delete on public.cpp_reference_sets,public.cpp_targets to service_role;
+grant select on public.v_cpp_master_lookup,public.v_cpp_live_targets,
+                public.v_cpp_scrapable_targets,public.v_cpp_reference_history
+to service_role;
+
+commit;
+
+-- V2.13.1 / V2.13.2 hardening
+alter function public.commit_cpp_reference_set_v2(jsonb) security invoker;
+revoke execute on function public.commit_cpp_reference_set_v2(jsonb) from public, anon, authenticated;
+grant execute on function public.commit_cpp_reference_set_v2(jsonb) to service_role;
+alter table public.cpp_reference_sets
+  drop constraint if exists cpp_reference_sets_effective_dates_check;
+alter table public.cpp_reference_sets
+  add constraint cpp_reference_sets_effective_dates_check
+  check (effective_to is null or effective_to >= effective_from);
+
+-- ============================================================
+-- V2.12 — scraper runtime / current master targets
+-- ============================================================
+begin;
+
+create table if not exists public.scraper_runs (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  run_date date not null default (timezone('Asia/Dhaka', now())::date),
+  checkpoint text not null check (checkpoint in ('am','pm','manual')),
+  revision integer not null default 1 check (revision >= 1),
+  is_current boolean not null default true,
+  supersedes_run_id uuid references public.scraper_runs(id) on delete set null,
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  status text not null default 'running' check (status in ('running','success','partial','failed')),
+  rows_expected integer not null default 0,
+  rows_observed integer not null default 0,
+  error_count integer not null default 0,
+  worker_version text,
+  source text not null default 'cpp_scraper_worker',
+  message text,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists uq_scraper_runs_current_slot
+  on public.scraper_runs(account_id, run_date, checkpoint)
+  where is_current = true;
+
+create index if not exists idx_scraper_runs_account_date
+  on public.scraper_runs(account_id, run_date desc, checkpoint, revision desc);
+
+create table if not exists public.scraper_price_observations (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references public.scraper_runs(id) on delete cascade,
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  observed_at timestamptz not null default now(),
+  account_sku text not null,
+  branch_code text not null default '',
+  branch_name text,
+  product_name text,
+  live_price numeric(14,2),
+  original_price numeric(14,2),
+  in_stock boolean,
+  scrape_status text not null default 'ok',
+  product_url text,
+  raw jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique(run_id, account_sku, branch_code)
+);
+
+create index if not exists idx_scraper_observations_lookup
+  on public.scraper_price_observations(account_id, account_sku, observed_at desc);
+
+create index if not exists idx_scraper_observations_run
+  on public.scraper_price_observations(run_id);
+
+create or replace view public.v_scraper_latest_observations
+with (security_invoker = true)
+as
+select distinct on (o.account_id, o.account_sku, o.branch_code)
+  a.code as account_code,
+  a.name as account_name,
+  r.run_date,
+  r.checkpoint,
+  r.revision,
+  r.status as run_status,
+  o.run_id,
+  o.observed_at,
+  o.account_sku,
+  o.branch_code,
+  o.branch_name,
+  o.product_name,
+  o.live_price,
+  o.original_price,
+  o.in_stock,
+  o.scrape_status,
+  o.product_url,
+  o.raw
+from public.scraper_price_observations o
+join public.scraper_runs r on r.id=o.run_id and r.is_current=true
+join public.accounts a on a.id=o.account_id
+order by o.account_id, o.account_sku, o.branch_code, o.observed_at desc, r.revision desc;
+
+alter table public.scraper_runs enable row level security;
+alter table public.scraper_price_observations enable row level security;
+
+revoke all on public.scraper_runs, public.scraper_price_observations,
+              public.v_scraper_latest_observations
+from anon, authenticated;
+
+grant select, insert, update, delete on public.scraper_runs,
+                                      public.scraper_price_observations
+to service_role;
+grant select on public.v_scraper_latest_observations to service_role;
+
+commit;
+begin;
+
+create or replace view public.v_scraper_master_targets
+with (security_invoker = true)
+as
+select
+  a.id as account_id,
+  a.code as account_code,
+  a.name as account_name,
+  pai.account_sku,
+  p.id as product_id,
+  p.ubl_code,
+  p.basepack_id,
+  b.packsize as basepack_name,
+  p.brand,
+  p.business_group,
+  p.category,
+  p.sub_category
+from public.product_account_ids pai
+join public.accounts a on a.id=pai.account_id and a.active=true
+join public.products p on p.id=pai.product_id and p.status='active'
+join public.basepacks b on b.id=p.basepack_id
+where a.code in ('daraz','pandamart','shajgoj','foodi','othoba');
+
+revoke all on public.v_scraper_master_targets from anon, authenticated;
+grant select on public.v_scraper_master_targets to service_role;
+
+commit;
+
+-- ============================================================
+-- V2.14 SoS Phase 1: Keyword Library + Target Product Assignment
+-- Source migration: 20261014_sos_phase1_keywords_targets_v214.sql
+-- ============================================================
+-- SoS Phase 1 foundation: keyword library, account search terms, target assignments.
+
+create table if not exists public.sos_keyword_imports (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  source_file_name text not null,
+  parser_profile text not null,
+  rows_total integer not null default 0 check (rows_total >= 0),
+  keywords_total integer not null default 0 check (keywords_total >= 0),
+  search_terms_total integer not null default 0 check (search_terms_total >= 0),
+  target_rows_total integer not null default 0 check (target_rows_total >= 0),
+  mapped_targets_total integer not null default 0 check (mapped_targets_total >= 0),
+  warnings jsonb not null default '[]'::jsonb,
+  imported_at timestamptz not null default now()
+);
+
+create table if not exists public.sos_keywords (
+  id uuid primary key default gen_random_uuid(),
+  keyword text not null,
+  normalized_key text not null unique,
+  format text not null,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.sos_keyword_terms (
+  id uuid primary key default gen_random_uuid(),
+  keyword_id uuid not null references public.sos_keywords(id) on delete cascade,
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  search_term text not null,
+  normalized_term text not null,
+  is_primary boolean not null default false,
+  source_import_id uuid references public.sos_keyword_imports(id) on delete set null,
+  active boolean not null default true,
+  source_row jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists sos_keyword_terms_current_uq
+  on public.sos_keyword_terms(account_id, normalized_term)
+  where active;
+create index if not exists sos_keyword_terms_keyword_idx
+  on public.sos_keyword_terms(keyword_id, account_id) where active;
+
+create table if not exists public.sos_keyword_targets (
+  id uuid primary key default gen_random_uuid(),
+  keyword_id uuid not null references public.sos_keywords(id) on delete cascade,
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  target_key text not null,
+  product_id uuid references public.products(id) on delete set null,
+  basepack_id uuid references public.basepacks(id) on delete set null,
+  account_sku text,
+  target_name text not null,
+  assignment_source text not null default 'manual' check (assignment_source in ('manual','import')),
+  source_import_id uuid references public.sos_keyword_imports(id) on delete set null,
+  mapping_status text not null default 'mapped' check (mapping_status in ('mapped','manual')),
+  match_score numeric(6,4),
+  active boolean not null default true,
+  source_row jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists sos_keyword_targets_current_uq
+  on public.sos_keyword_targets(keyword_id, account_id, target_key)
+  where active;
+create index if not exists sos_keyword_targets_account_idx
+  on public.sos_keyword_targets(account_id, keyword_id) where active;
+
+create table if not exists public.sos_import_target_candidates (
+  id uuid primary key default gen_random_uuid(),
+  import_id uuid not null references public.sos_keyword_imports(id) on delete cascade,
+  keyword_id uuid not null references public.sos_keywords(id) on delete cascade,
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  source_account_sku text,
+  source_name text not null,
+  matched_product_id uuid references public.products(id) on delete set null,
+  matched_basepack_id uuid references public.basepacks(id) on delete set null,
+  matched_account_sku text,
+  mapping_status text not null check (mapping_status in ('direct','exact_name','fuzzy_name','unmapped','ambiguous')),
+  match_score numeric(6,4),
+  accepted boolean not null default false,
+  source_row jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists sos_import_target_candidates_import_idx
+  on public.sos_import_target_candidates(import_id, keyword_id);
+
+create index if not exists sos_keyword_imports_account_idx on public.sos_keyword_imports(account_id);
+create index if not exists sos_keyword_terms_import_idx on public.sos_keyword_terms(source_import_id);
+create index if not exists sos_keyword_targets_product_idx on public.sos_keyword_targets(product_id);
+create index if not exists sos_keyword_targets_basepack_idx on public.sos_keyword_targets(basepack_id);
+create index if not exists sos_keyword_targets_import_idx on public.sos_keyword_targets(source_import_id);
+create index if not exists sos_import_target_candidates_keyword_idx on public.sos_import_target_candidates(keyword_id);
+create index if not exists sos_import_target_candidates_account_idx on public.sos_import_target_candidates(account_id);
+create index if not exists sos_import_target_candidates_product_idx on public.sos_import_target_candidates(matched_product_id);
+create index if not exists sos_import_target_candidates_basepack_idx on public.sos_import_target_candidates(matched_basepack_id);
+
+alter table public.sos_keyword_imports enable row level security;
+alter table public.sos_keywords enable row level security;
+alter table public.sos_keyword_terms enable row level security;
+alter table public.sos_keyword_targets enable row level security;
+alter table public.sos_import_target_candidates enable row level security;
+
+revoke all on public.sos_keyword_imports from anon, authenticated;
+revoke all on public.sos_keywords from anon, authenticated;
+revoke all on public.sos_keyword_terms from anon, authenticated;
+revoke all on public.sos_keyword_targets from anon, authenticated;
+revoke all on public.sos_import_target_candidates from anon, authenticated;
+
+grant select, insert, update, delete on public.sos_keyword_imports to service_role;
+grant select, insert, update, delete on public.sos_keywords to service_role;
+grant select, insert, update, delete on public.sos_keyword_terms to service_role;
+grant select, insert, update, delete on public.sos_keyword_targets to service_role;
+grant select, insert, update, delete on public.sos_import_target_candidates to service_role;
+
+create or replace view public.v_sos_product_lookup
+with (security_invoker = true)
+as
+select distinct on (a.code, pai.account_sku, coalesce(p.basepack_id, p.id))
+  a.id as account_id,
+  a.code as account_code,
+  a.name as account_name,
+  pai.account_sku,
+  p.id as product_id,
+  p.basepack_id,
+  b.packsize,
+  p.ubl_code,
+  p.name as product_name,
+  p.brand,
+  p.category,
+  p.sub_category,
+  p.business_group,
+  p.hero_image_url
+from public.product_account_ids pai
+join public.accounts a on a.id = pai.account_id
+join public.products p on p.id = pai.product_id
+left join public.basepacks b on b.id = p.basepack_id
+where p.status = 'active' and a.active
+order by a.code, pai.account_sku, coalesce(p.basepack_id, p.id), p.ubl_code;
+
+revoke all on public.v_sos_product_lookup from anon, authenticated;
+grant select on public.v_sos_product_lookup to service_role;
+
+create or replace function public.commit_sos_keyword_import_v1(payload jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_account_id uuid;
+  v_account_code text := lower(trim(payload->>'account_code'));
+  v_import_id uuid;
+  v_kw jsonb;
+  v_term jsonb;
+  v_target jsonb;
+  v_keyword_id uuid;
+  v_target_key text;
+  v_mapped integer := 0;
+  v_terms integer := 0;
+  v_targets integer := 0;
+begin
+  select id into v_account_id from public.accounts where code = v_account_code and active limit 1;
+  if v_account_id is null then
+    raise exception 'Unknown or inactive account: %', v_account_code;
+  end if;
+
+  insert into public.sos_keyword_imports(
+    account_id, source_file_name, parser_profile, rows_total, keywords_total,
+    search_terms_total, target_rows_total, mapped_targets_total, warnings
+  ) values (
+    v_account_id,
+    coalesce(payload->>'source_file_name','unknown.xlsx'),
+    coalesce(payload->>'parser_profile','SoS keyword import'),
+    coalesce((payload->>'rows_total')::integer,0),
+    jsonb_array_length(coalesce(payload->'keywords','[]'::jsonb)),
+    coalesce((payload->>'search_terms_total')::integer,0),
+    coalesce((payload->>'target_rows_total')::integer,0),
+    coalesce((payload->>'mapped_targets_total')::integer,0),
+    coalesce(payload->'warnings','[]'::jsonb)
+  ) returning id into v_import_id;
+
+  -- The uploaded workbook is the current source of search terms for this account.
+  update public.sos_keyword_terms set active = false
+  where account_id = v_account_id and active;
+
+  -- Imported target assignments are refreshed from the workbook. Manual assignments survive.
+  update public.sos_keyword_targets set active = false, updated_at = now()
+  where account_id = v_account_id and active and assignment_source = 'import';
+
+  for v_kw in select * from jsonb_array_elements(coalesce(payload->'keywords','[]'::jsonb)) loop
+    insert into public.sos_keywords(keyword, normalized_key, format, active, updated_at)
+    values (
+      trim(v_kw->>'keyword'),
+      trim(v_kw->>'normalized_key'),
+      coalesce(nullif(trim(v_kw->>'format'),''), trim(v_kw->>'keyword')),
+      true,
+      now()
+    )
+    on conflict (normalized_key) do update set
+      keyword = excluded.keyword,
+      format = case when excluded.format <> '' then excluded.format else public.sos_keywords.format end,
+      active = true,
+      updated_at = now()
+    returning id into v_keyword_id;
+
+    for v_term in select * from jsonb_array_elements(coalesce(v_kw->'terms','[]'::jsonb)) loop
+      insert into public.sos_keyword_terms(
+        keyword_id, account_id, search_term, normalized_term, is_primary,
+        source_import_id, active, source_row
+      ) values (
+        v_keyword_id, v_account_id,
+        trim(v_term->>'search_term'), trim(v_term->>'normalized_term'),
+        coalesce((v_term->>'is_primary')::boolean,false),
+        v_import_id, true, coalesce(v_term->'source_row','{}'::jsonb)
+      );
+      v_terms := v_terms + 1;
+    end loop;
+
+    for v_target in select * from jsonb_array_elements(coalesce(v_kw->'targets','[]'::jsonb)) loop
+      v_targets := v_targets + 1;
+      insert into public.sos_import_target_candidates(
+        import_id, keyword_id, account_id, source_account_sku, source_name,
+        matched_product_id, matched_basepack_id, matched_account_sku,
+        mapping_status, match_score, accepted, source_row
+      ) values (
+        v_import_id, v_keyword_id, v_account_id,
+        nullif(trim(v_target->>'source_account_sku'),''),
+        coalesce(nullif(trim(v_target->>'source_name'),''),'Unnamed target'),
+        nullif(v_target->>'matched_product_id','')::uuid,
+        nullif(v_target->>'matched_basepack_id','')::uuid,
+        nullif(trim(v_target->>'matched_account_sku'),''),
+        coalesce(nullif(v_target->>'mapping_status',''),'unmapped'),
+        nullif(v_target->>'match_score','')::numeric,
+        coalesce((v_target->>'accepted')::boolean,false),
+        coalesce(v_target->'source_row','{}'::jsonb)
+      );
+
+      if coalesce((v_target->>'accepted')::boolean,false)
+         and nullif(v_target->>'matched_basepack_id','') is not null then
+        v_target_key := case
+          when nullif(trim(v_target->>'matched_account_sku'),'') is not null
+            then 'sku:' || lower(trim(v_target->>'matched_account_sku'))
+          else 'basepack:' || (v_target->>'matched_basepack_id')
+        end;
+
+        insert into public.sos_keyword_targets(
+          keyword_id, account_id, target_key, product_id, basepack_id, account_sku,
+          target_name, assignment_source, source_import_id, mapping_status,
+          match_score, active, source_row, updated_at
+        ) values (
+          v_keyword_id, v_account_id, v_target_key,
+          nullif(v_target->>'matched_product_id','')::uuid,
+          nullif(v_target->>'matched_basepack_id','')::uuid,
+          nullif(trim(v_target->>'matched_account_sku'),''),
+          coalesce(nullif(trim(v_target->>'source_name'),''),'UBL target'),
+          'import', v_import_id, 'mapped',
+          nullif(v_target->>'match_score','')::numeric,
+          true, coalesce(v_target->'source_row','{}'::jsonb), now()
+        )
+        on conflict (keyword_id, account_id, target_key) where active
+        do update set
+          product_id = excluded.product_id,
+          basepack_id = excluded.basepack_id,
+          account_sku = excluded.account_sku,
+          target_name = excluded.target_name,
+          source_import_id = excluded.source_import_id,
+          match_score = excluded.match_score,
+          source_row = excluded.source_row,
+          updated_at = now();
+
+        v_mapped := v_mapped + 1;
+      end if;
+    end loop;
+  end loop;
+
+  return jsonb_build_object(
+    'import_id', v_import_id,
+    'account_code', v_account_code,
+    'keywords', jsonb_array_length(coalesce(payload->'keywords','[]'::jsonb)),
+    'search_terms', v_terms,
+    'target_rows', v_targets,
+    'mapped_targets', v_mapped
+  );
+end;
+$$;
+
+revoke all on function public.commit_sos_keyword_import_v1(jsonb) from public, anon, authenticated;
+grant execute on function public.commit_sos_keyword_import_v1(jsonb) to service_role;
+
+-- ============================================================
+-- SoS Phase 2 (v2.15): run history + classified search results
+-- Full canonical DDL lives in migrations/20261014_sos_phase2_shajgoj_v215.sql
+-- ============================================================
+-- SoS Phase 2: generic run/result foundation + Shajgoj reporting views.
+-- Tables remain backend/service-role only, following the rest of the internal V2 app.
+
+create table if not exists public.sos_runs (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  run_date date not null,
+  top_n integer not null default 4 check (top_n between 1 and 20),
+  started_at timestamptz not null,
+  finished_at timestamptz,
+  status text not null check (status in ('success','partial','error')),
+  terms_expected integer not null default 0 check (terms_expected >= 0),
+  terms_scraped integer not null default 0 check (terms_scraped >= 0),
+  rows_observed integer not null default 0 check (rows_observed >= 0),
+  error_count integer not null default 0 check (error_count >= 0),
+  source text not null default 'web',
+  worker_version text not null default 'sos-v2.15.0',
+  message text,
+  created_at timestamptz not null default now()
+);
+create index if not exists sos_runs_account_started_idx on public.sos_runs(account_id, started_at desc);
+
+create table if not exists public.sos_run_targets (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references public.sos_runs(id) on delete cascade,
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  keyword_id uuid not null references public.sos_keywords(id) on delete cascade,
+  target_key text not null,
+  product_id uuid references public.products(id) on delete set null,
+  basepack_id uuid references public.basepacks(id) on delete set null,
+  account_sku text,
+  target_name text not null,
+  created_at timestamptz not null default now(),
+  unique(run_id, keyword_id, target_key)
+);
+create index if not exists sos_run_targets_run_keyword_idx on public.sos_run_targets(run_id, keyword_id);
+create index if not exists sos_run_targets_basepack_idx on public.sos_run_targets(basepack_id);
+create index if not exists sos_run_targets_account_idx on public.sos_run_targets(account_id);
+create index if not exists sos_run_targets_keyword_idx on public.sos_run_targets(keyword_id);
+create index if not exists sos_run_targets_product_idx on public.sos_run_targets(product_id);
+
+create table if not exists public.sos_term_runs (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references public.sos_runs(id) on delete cascade,
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  keyword_id uuid not null references public.sos_keywords(id) on delete cascade,
+  term_id uuid not null references public.sos_keyword_terms(id) on delete cascade,
+  searched_term text not null,
+  branch_code text not null default 'all',
+  branch_name text,
+  status text not null check (status in ('ok','error')),
+  total_found integer not null default 0 check (total_found >= 0),
+  results_saved integer not null default 0 check (results_saved >= 0),
+  searched_at timestamptz not null,
+  error_message text,
+  created_at timestamptz not null default now(),
+  unique(run_id, term_id, branch_code)
+);
+create index if not exists sos_term_runs_run_idx on public.sos_term_runs(run_id);
+create index if not exists sos_term_runs_keyword_idx on public.sos_term_runs(keyword_id);
+create index if not exists sos_term_runs_account_idx on public.sos_term_runs(account_id);
+create index if not exists sos_term_runs_term_idx on public.sos_term_runs(term_id);
+
+create table if not exists public.sos_search_results (
+  id uuid primary key default gen_random_uuid(),
+  run_id uuid not null references public.sos_runs(id) on delete cascade,
+  term_run_id uuid not null references public.sos_term_runs(id) on delete cascade,
+  account_id uuid not null references public.accounts(id) on delete cascade,
+  keyword_id uuid not null references public.sos_keywords(id) on delete cascade,
+  term_id uuid not null references public.sos_keyword_terms(id) on delete cascade,
+  branch_code text not null default 'all',
+  branch_name text,
+  searched_term text not null,
+  rank integer not null check (rank >= 1),
+  marketplace_sku text,
+  product_name text not null,
+  size text,
+  price numeric,
+  sale_price numeric,
+  stock_qty numeric,
+  in_stock boolean,
+  product_url text,
+  product_id uuid references public.products(id) on delete set null,
+  basepack_id uuid references public.basepacks(id) on delete set null,
+  matched_brand text,
+  is_ubl boolean not null default false,
+  is_target boolean not null default false,
+  classification text not null check (classification in ('target_ubl','ubl_non_target','competitor')),
+  ubl_match_method text not null default 'none',
+  ubl_match_score numeric(6,4),
+  matched_target_key text,
+  matched_target_id uuid references public.sos_run_targets(id) on delete set null,
+  raw jsonb not null default '{}'::jsonb,
+  observed_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  unique(run_id, term_id, branch_code, rank)
+);
+create index if not exists sos_search_results_run_idx on public.sos_search_results(run_id);
+create index if not exists sos_search_results_keyword_idx on public.sos_search_results(keyword_id);
+create index if not exists sos_search_results_classification_idx on public.sos_search_results(run_id, classification);
+create index if not exists sos_search_results_basepack_idx on public.sos_search_results(basepack_id);
+create index if not exists sos_search_results_target_idx on public.sos_search_results(matched_target_id);
+create index if not exists sos_search_results_account_idx on public.sos_search_results(account_id);
+create index if not exists sos_search_results_product_idx on public.sos_search_results(product_id);
+create index if not exists sos_search_results_term_idx on public.sos_search_results(term_id);
+create index if not exists sos_search_results_term_run_idx on public.sos_search_results(term_run_id);
+
+alter table public.sos_runs enable row level security;
+alter table public.sos_run_targets enable row level security;
+alter table public.sos_term_runs enable row level security;
+alter table public.sos_search_results enable row level security;
+revoke all on public.sos_runs from anon, authenticated;
+revoke all on public.sos_run_targets from anon, authenticated;
+revoke all on public.sos_term_runs from anon, authenticated;
+revoke all on public.sos_search_results from anon, authenticated;
+grant select, insert, update, delete on public.sos_runs to service_role;
+grant select, insert, update, delete on public.sos_run_targets to service_role;
+grant select, insert, update, delete on public.sos_term_runs to service_role;
+grant select, insert, update, delete on public.sos_search_results to service_role;
+
+create or replace view public.v_sos_term_metrics with (security_invoker = true) as
+select
+  tr.run_id, tr.account_id, tr.keyword_id, tr.term_id, tr.searched_term,
+  tr.branch_code, tr.branch_name, tr.status, tr.total_found, tr.results_saved,
+  r.top_n,
+  case when tr.status = 'ok' then r.top_n else null end as top_slots,
+  case when tr.status = 'ok' then count(sr.id) filter (where sr.rank <= r.top_n) else null end as results_found,
+  case when tr.status = 'ok' then count(sr.id) filter (where sr.rank <= r.top_n and sr.is_ubl) else null end as ubl_count,
+  case when tr.status = 'ok' then count(sr.id) filter (where sr.rank <= r.top_n and sr.classification = 'ubl_non_target') else null end as non_target_ubl_count,
+  case when tr.status = 'ok' then count(sr.id) filter (where sr.rank <= r.top_n and sr.classification = 'competitor') else null end as competitor_count,
+  case when tr.status = 'ok' then count(distinct sr.matched_target_id) filter (where sr.rank <= r.top_n and sr.matched_target_id is not null) else null end as target_hits,
+  (select count(*) from public.sos_run_targets rt where rt.run_id = tr.run_id and rt.keyword_id = tr.keyword_id) as assigned_targets,
+  case when tr.status = 'ok'
+       then (count(sr.id) filter (where sr.rank <= r.top_n and sr.is_ubl))::numeric / nullif(r.top_n, 0)
+       else null end as ubl_sos,
+  case when tr.status = 'ok'
+       then (count(distinct sr.matched_target_id) filter (where sr.rank <= r.top_n and sr.matched_target_id is not null))::numeric
+            / nullif((select count(*) from public.sos_run_targets rt where rt.run_id = tr.run_id and rt.keyword_id = tr.keyword_id), 0)
+       else null end as target_achievement
+from public.sos_term_runs tr
+join public.sos_runs r on r.id = tr.run_id
+left join public.sos_search_results sr on sr.term_run_id = tr.id
+group by tr.id, tr.run_id, tr.account_id, tr.keyword_id, tr.term_id, tr.searched_term,
+         tr.branch_code, tr.branch_name, tr.status, tr.total_found, tr.results_saved, r.top_n;
+
+create or replace view public.v_sos_keyword_metrics with (security_invoker = true) as
+select
+  tm.run_id, tm.account_id, tm.keyword_id, k.format, k.keyword,
+  count(*) as terms_attempted,
+  count(*) filter (where tm.status = 'ok') as terms_scraped,
+  count(*) filter (where tm.status = 'error') as terms_failed,
+  sum(tm.top_slots) filter (where tm.status = 'ok') as top_slots,
+  sum(tm.results_found) filter (where tm.status = 'ok') as results_found,
+  sum(tm.ubl_count) filter (where tm.status = 'ok') as ubl_count,
+  sum(tm.non_target_ubl_count) filter (where tm.status = 'ok') as non_target_ubl_count,
+  sum(tm.competitor_count) filter (where tm.status = 'ok') as competitor_count,
+  sum(tm.target_hits) filter (where tm.status = 'ok') as target_hits,
+  sum(tm.assigned_targets) filter (where tm.status = 'ok') as target_opportunities,
+  case when sum(tm.top_slots) filter (where tm.status = 'ok') > 0
+       then (sum(tm.ubl_count) filter (where tm.status = 'ok'))::numeric / nullif(sum(tm.top_slots) filter (where tm.status = 'ok'), 0)
+       else null end as ubl_sos,
+  case when sum(tm.assigned_targets) filter (where tm.status = 'ok') > 0
+       then (sum(tm.target_hits) filter (where tm.status = 'ok'))::numeric / nullif(sum(tm.assigned_targets) filter (where tm.status = 'ok'), 0)
+       else null end as target_achievement
+from public.v_sos_term_metrics tm
+join public.sos_keywords k on k.id = tm.keyword_id
+group by tm.run_id, tm.account_id, tm.keyword_id, k.format, k.keyword;
+
+revoke all on public.v_sos_term_metrics from anon, authenticated;
+revoke all on public.v_sos_keyword_metrics from anon, authenticated;
+grant select on public.v_sos_term_metrics to service_role;
+grant select on public.v_sos_keyword_metrics to service_role;
+
+create or replace function public.commit_sos_run_v1(payload jsonb)
+returns uuid
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_account_id uuid;
+  v_account_code text := lower(trim(payload->>'account_code'));
+  v_run_id uuid;
+  v_target jsonb;
+  v_term jsonb;
+  v_result jsonb;
+  v_term_run_id uuid;
+  v_target_id uuid;
+begin
+  select id into v_account_id from public.accounts where code = v_account_code and active limit 1;
+  if v_account_id is null then raise exception 'Unknown or inactive account: %', v_account_code; end if;
+
+  insert into public.sos_runs(
+    account_id, run_date, top_n, started_at, finished_at, status,
+    terms_expected, terms_scraped, rows_observed, error_count,
+    source, worker_version, message
+  ) values (
+    v_account_id, (payload->>'run_date')::date, coalesce((payload->>'top_n')::integer, 4),
+    (payload->>'started_at')::timestamptz, (payload->>'finished_at')::timestamptz,
+    payload->>'status', coalesce((payload->>'terms_expected')::integer,0),
+    coalesce((payload->>'terms_scraped')::integer,0), coalesce((payload->>'rows_observed')::integer,0),
+    coalesce((payload->>'error_count')::integer,0), coalesce(nullif(payload->>'source',''),'web'),
+    coalesce(nullif(payload->>'worker_version',''),'sos-v2.15.0'), nullif(payload->>'message','')
+  ) returning id into v_run_id;
+
+  for v_target in select * from jsonb_array_elements(coalesce(payload->'targets','[]'::jsonb)) loop
+    insert into public.sos_run_targets(
+      run_id, account_id, keyword_id, target_key, product_id, basepack_id, account_sku, target_name
+    ) values (
+      v_run_id, v_account_id, (v_target->>'keyword_id')::uuid, v_target->>'target_key',
+      nullif(v_target->>'product_id','')::uuid, nullif(v_target->>'basepack_id','')::uuid,
+      nullif(v_target->>'account_sku',''), v_target->>'target_name'
+    );
+  end loop;
+
+  for v_term in select * from jsonb_array_elements(coalesce(payload->'term_runs','[]'::jsonb)) loop
+    insert into public.sos_term_runs(
+      run_id, account_id, keyword_id, term_id, searched_term, branch_code, branch_name,
+      status, total_found, results_saved, searched_at, error_message
+    ) values (
+      v_run_id, v_account_id, (v_term->>'keyword_id')::uuid, (v_term->>'term_id')::uuid,
+      v_term->>'searched_term', coalesce(nullif(v_term->>'branch_code',''),'all'), nullif(v_term->>'branch_name',''),
+      v_term->>'status', coalesce((v_term->>'total_found')::integer,0), coalesce((v_term->>'results_saved')::integer,0),
+      (v_term->>'searched_at')::timestamptz, nullif(v_term->>'error_message','')
+    ) returning id into v_term_run_id;
+
+    for v_result in select * from jsonb_array_elements(coalesce(v_term->'results','[]'::jsonb)) loop
+      v_target_id := null;
+      if nullif(v_result->>'matched_target_key','') is not null then
+        select id into v_target_id from public.sos_run_targets
+        where run_id = v_run_id and keyword_id = (v_term->>'keyword_id')::uuid
+          and target_key = v_result->>'matched_target_key'
+        limit 1;
+      end if;
+
+      insert into public.sos_search_results(
+        run_id, term_run_id, account_id, keyword_id, term_id, branch_code, branch_name,
+        searched_term, rank, marketplace_sku, product_name, size, price, sale_price,
+        stock_qty, in_stock, product_url, product_id, basepack_id, matched_brand,
+        is_ubl, is_target, classification, ubl_match_method, ubl_match_score,
+        matched_target_key, matched_target_id, raw, observed_at
+      ) values (
+        v_run_id, v_term_run_id, v_account_id, (v_term->>'keyword_id')::uuid, (v_term->>'term_id')::uuid,
+        coalesce(nullif(v_term->>'branch_code',''),'all'), nullif(v_term->>'branch_name',''),
+        v_term->>'searched_term', (v_result->>'rank')::integer, nullif(v_result->>'marketplace_sku',''),
+        v_result->>'product_name', nullif(v_result->>'size',''), nullif(v_result->>'price','')::numeric,
+        nullif(v_result->>'sale_price','')::numeric, nullif(v_result->>'stock_qty','')::numeric,
+        nullif(v_result->>'in_stock','')::boolean, nullif(v_result->>'product_url',''),
+        nullif(v_result->>'product_id','')::uuid, nullif(v_result->>'basepack_id','')::uuid,
+        nullif(v_result->>'matched_brand',''), coalesce((v_result->>'is_ubl')::boolean,false),
+        coalesce((v_result->>'is_target')::boolean,false), v_result->>'classification',
+        coalesce(nullif(v_result->>'ubl_match_method',''),'none'), nullif(v_result->>'ubl_match_score','')::numeric,
+        nullif(v_result->>'matched_target_key',''), v_target_id, coalesce(v_result->'raw','{}'::jsonb),
+        (v_result->>'observed_at')::timestamptz
+      );
+    end loop;
+  end loop;
+
+  return v_run_id;
+end;
+$$;
+revoke all on function public.commit_sos_run_v1(jsonb) from public, anon, authenticated;
+grant execute on function public.commit_sos_run_v1(jsonb) to service_role;

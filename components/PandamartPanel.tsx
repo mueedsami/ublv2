@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
+import { exportCsv } from '@/lib/csv-export';
 
 type OlaRow = {
   stock_date: string;
@@ -80,6 +81,7 @@ export default function PandamartPanel() {
   const [monthly, setMonthly] = useState<MonthlyRow[]>([]);
   const [flags, setFlags] = useState<FlagRow[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all'|'has-oos'|'fully-available'>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -106,8 +108,12 @@ export default function PandamartPanel() {
   const latest = daily[0] ?? null;
   const currentMonth = monthly[0] ?? null;
   const recentDaily = useMemo(() => daily.slice(0, 31), [daily]);
+  const filteredBranches = useMemo(() => branches.filter((r)=>availabilityFilter==='all'||(availabilityFilter==='has-oos'?r.unavailable_basepacks>0:r.unavailable_basepacks===0)), [branches,availabilityFilter]);
   const critical = flags.filter((f) => f.severity === 'critical').length;
   const warning = flags.filter((f) => f.severity === 'warning').length;
+
+  function exportBranches() { exportCsv(`pandamart-branch-ola-${availabilityFilter}`, filteredBranches.map((r)=>({ Stock_Date:r.stock_date, Branch:r.branch_name, Available:r.available_basepacks, Unavailable:r.unavailable_basepacks, Total:r.expected_basepacks, OLA_Pct:r.ola_pct }))); }
+  function exportFlags() { exportCsv('pandamart-flags', flags.map((f)=>({ Severity:f.severity, Flag:f.title, Type:f.flag_type, Entity_Type:f.entity_type, Entity:f.entity_name, Stock_Date:f.stock_date, Message:f.message }))); }
 
   return <div className="pandamart-dashboard">
     <div className="pandamart-tabbar">
@@ -168,12 +174,12 @@ export default function PandamartPanel() {
     </>}
 
     {latest && activeTab === 'branches' && <section className="card">
-      <div className="card-head"><div><h2>Latest branch OLA</h2><p>{dateLabel(latest.stock_date)} · each master-listed basepack × branch is one OLA cell. DC is excluded.</p></div></div>
-      {branches.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Branch</th><th>Available</th><th>Out</th><th>Total</th><th>OLA</th></tr></thead><tbody>{branches.map((row) => <tr key={row.branch_code}><td><strong>{row.branch_name}</strong></td><td>{row.available_basepacks}</td><td>{row.unavailable_basepacks}</td><td>{row.expected_basepacks}</td><td><strong>{pct(row.ola_pct)}</strong></td></tr>)}</tbody></table></div> : <div className="empty">No branch snapshot available.</div>}
+      <div className="card-head"><div><h2>Latest branch OLA</h2><p>{dateLabel(latest.stock_date)} · each master-listed basepack × branch is one OLA cell. DC is excluded.</p></div><div className="table-actions"><select value={availabilityFilter} onChange={(e)=>setAvailabilityFilter(e.target.value as any)}><option value="all">All branches</option><option value="has-oos">Branches with unavailable products</option><option value="fully-available">Fully available branches</option></select><button className="button secondary compact" onClick={exportBranches} disabled={!filteredBranches.length}><Download size={15}/>Export CSV</button></div></div>
+      {filteredBranches.length > 0 ? <div className="table-wrap"><table><thead><tr><th>Branch</th><th>Available</th><th>Out</th><th>Total</th><th>OLA</th></tr></thead><tbody>{filteredBranches.map((row) => <tr key={row.branch_code}><td><strong>{row.branch_name}</strong></td><td>{row.available_basepacks}</td><td>{row.unavailable_basepacks}</td><td>{row.expected_basepacks}</td><td><strong>{pct(row.ola_pct)}</strong></td></tr>)}</tbody></table></div> : <div className="empty">No branch snapshot available.</div>}
     </section>}
 
     {latest && activeTab === 'flags' && <section className="card">
-      <div className="card-head"><div><h2>Operational flags</h2><p>Derived from the latest branch stock plus accumulated Pandamart daily sales history.</p></div></div>
+      <div className="card-head"><div><h2>Operational flags</h2><p>Derived from the latest branch stock plus accumulated Pandamart daily sales history.</p></div><button className="button secondary compact" onClick={exportFlags} disabled={!flags.length}><Download size={15}/>Export flags</button></div>
       {flags.length > 0 ? <>
         <div className="flag-summary"><span><strong>{critical}</strong> critical</span><span><strong>{warning}</strong> warning</span><span><strong>{flags.length}</strong> total</span></div>
         <div className="table-wrap"><table><thead><tr><th>Severity</th><th>Flag</th><th>Basepack / Branch</th><th>Why</th></tr></thead><tbody>{flags.map((flag) => <tr key={`${flag.flag_type}-${flag.entity_type}-${flag.entity_key}`}><td><span className={`flag-severity ${flag.severity}`}>{flag.severity}</span></td><td><strong>{flag.title}</strong></td><td>{flag.entity_name}</td><td>{flag.message}</td></tr>)}</tbody></table></div>

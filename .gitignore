@@ -4,3 +4,29 @@ node_modules
 .env.local
 *.log
 .DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# Database / SQL
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+
+# Data Dumps
+stock dump/
+stock\ dump/
+stock_dump/
+
+*.csv
+*.xlsx
+*.zip

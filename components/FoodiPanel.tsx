@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
+import { exportCsv } from '@/lib/csv-export';
 
 type BasepackRow = {
   stock_date: string;
@@ -73,6 +74,7 @@ export default function FoodiPanel() {
   const [monthly, setMonthly] = useState<MonthlyRow[]>([]);
   const [sales30d, setSales30d] = useState<SalesRow[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all'|'available'|'unavailable'>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -96,7 +98,10 @@ export default function FoodiPanel() {
   const latest = daily[0] ?? null;
   const currentMonth = monthly[0] ?? null;
   const latestSales = sales30d[0] ?? null;
+  const filteredCurrent = useMemo(() => current.filter((r)=>availabilityFilter==='all'||(availabilityFilter==='available'?r.is_available:!r.is_available)), [current,availabilityFilter]);
   const topSelling = useMemo(() => [...current].sort((a, b) => Number(b.sold_qty_30d) - Number(a.sold_qty_30d)).slice(0, 10), [current]);
+
+  function exportCurrent() { exportCsv(`foodi-${availabilityFilter}-products`, filteredCurrent.map((r)=>({ Date:r.stock_date, Basepack:r.packsize, Brand:join(r.brands), Category:join(r.categories), Stock:r.stock_qty, Sold_30D:r.sold_qty_30d, Status:r.is_available?'Available':'Unavailable' }))); }
 
   return <div className="pandamart-dashboard">
     <div className="pandamart-tabbar">
@@ -132,8 +137,8 @@ export default function FoodiPanel() {
     </>}
 
     {latest && activeTab==='stock' && <section className="card">
-      <div className="card-head"><div><h2>Current basepack stock</h2><p>{dateLabel(latest.stock_date)} · basepack availability is derived from active master Foodi SKU IDs.</p></div></div>
-      <div className="table-wrap"><table><thead><tr><th>Basepack</th><th>Brand</th><th>Category</th><th>Stock</th><th>30-day sold</th><th>Status</th></tr></thead><tbody>{current.map((row)=><tr key={row.packsize}><td><strong>{row.packsize}</strong></td><td>{join(row.brands)}</td><td>{join(row.categories)}</td><td>{number(row.stock_qty)}</td><td>{number(row.sold_qty_30d)}</td><td><span className={`status ${row.is_available?'available':'oos'}`}>{row.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div>
+      <div className="card-head"><div><h2>Current basepack stock</h2><p>{dateLabel(latest.stock_date)} · basepack availability is derived from active master Foodi SKU IDs.</p></div><div className="table-actions"><select value={availabilityFilter} onChange={(e)=>setAvailabilityFilter(e.target.value as any)}><option value="all">All products</option><option value="available">Available only</option><option value="unavailable">Unavailable only</option></select><button className="button secondary compact" onClick={exportCurrent} disabled={!filteredCurrent.length}><Download size={15}/>Export CSV</button></div></div>
+      <div className="table-wrap"><table><thead><tr><th>Basepack</th><th>Brand</th><th>Category</th><th>Stock</th><th>30-day sold</th><th>Status</th></tr></thead><tbody>{filteredCurrent.map((row)=><tr key={row.packsize}><td><strong>{row.packsize}</strong></td><td>{join(row.brands)}</td><td>{join(row.categories)}</td><td>{number(row.stock_qty)}</td><td>{number(row.sold_qty_30d)}</td><td><span className={`status ${row.is_available?'available':'oos'}`}>{row.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div>
     </section>}
 
     {latest && activeTab==='sales' && <section className="card">

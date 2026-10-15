@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { Download, RefreshCw } from 'lucide-react';
+import { exportCsv } from '@/lib/csv-export';
 
 type BasepackRow = {
   stock_date: string;
@@ -85,6 +86,7 @@ export default function ShajgojPanel() {
   const [flags, setFlags] = useState<FlagRow[]>([]);
   const [flagSummary, setFlagSummary] = useState<FlagSummary | null>(null);
   const [severityFilter, setSeverityFilter] = useState<'all' | FlagRow['severity']>('all');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all'|'available'|'unavailable'>('all');
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -109,11 +111,15 @@ export default function ShajgojPanel() {
 
   useEffect(() => { void load(); }, []);
 
+  const filteredCurrent = useMemo(() => current.filter((r) => availabilityFilter==='all' || (availabilityFilter==='available' ? r.is_available : !r.is_available)), [current, availabilityFilter]);
   const latest = daily[0] ?? null;
   const currentMonth = monthly[0] ?? null;
   const latestSales = salesSnapshots[0] ?? null;
   const availableStock = useMemo(() => current.filter((row) => row.is_available).length, [current]);
   const visibleFlags = useMemo(() => severityFilter==='all' ? flags : flags.filter((row)=>row.severity===severityFilter), [flags, severityFilter]);
+
+  function exportCurrent() { exportCsv(`shajgoj-${availabilityFilter}-products`, filteredCurrent.map((r)=>({ Date:r.stock_date, Basepack:r.packsize, Brand:join(r.brands), Business_Unit:join(r.business_groups), Category:join(r.categories), Sub_Category:join(r.sub_categories), Stock:r.stock_qty, Status:r.is_available?'Available':'Unavailable' }))); }
+  function exportFlags() { exportCsv('shajgoj-flags', visibleFlags.map((r)=>({ Severity:r.severity, Flag:r.flag_type.replaceAll('_',' '), Basepack:r.packsize, Brand:join(r.brands), Stock:r.stock_qty, Sold_Qty:r.sold_qty, Days_Cover:r.days_of_cover, Reason:r.reason, Stock_Date:r.stock_date }))); }
 
   return <div className="pandamart-dashboard">
     <div className="pandamart-tabbar">
@@ -158,8 +164,8 @@ export default function ShajgojPanel() {
     </>}
 
     {latest && activeTab==='stock' && <section className="card">
-      <div className="card-head"><div><h2>Current basepack stock</h2><p>{dateLabel(latest.stock_date)} · basepack availability is derived from the master Shajgoj SKU IDs.</p></div></div>
-      <div className="table-wrap"><table><thead><tr><th>Basepack</th><th>Brand</th><th>Category</th><th>Stock</th><th>Status</th></tr></thead><tbody>{current.map((row)=><tr key={row.packsize}><td><strong>{row.packsize}</strong></td><td>{join(row.brands)}</td><td>{join(row.categories)}</td><td>{number(row.stock_qty)}</td><td><span className={`status ${row.is_available?'available':'oos'}`}>{row.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div>
+      <div className="card-head"><div><h2>Current basepack stock</h2><p>{dateLabel(latest.stock_date)} · basepack availability is derived from the master Shajgoj SKU IDs.</p></div><div className="table-actions"><select value={availabilityFilter} onChange={(e)=>setAvailabilityFilter(e.target.value as any)}><option value="all">All products</option><option value="available">Available only</option><option value="unavailable">Unavailable only</option></select><button className="button secondary compact" onClick={exportCurrent} disabled={!filteredCurrent.length}><Download size={15}/>Export CSV</button></div></div>
+      <div className="table-wrap"><table><thead><tr><th>Basepack</th><th>Brand</th><th>Category</th><th>Stock</th><th>Status</th></tr></thead><tbody>{filteredCurrent.map((row)=><tr key={row.packsize}><td><strong>{row.packsize}</strong></td><td>{join(row.brands)}</td><td>{join(row.categories)}</td><td>{number(row.stock_qty)}</td><td><span className={`status ${row.is_available?'available':'oos'}`}>{row.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div>
     </section>}
 
     {latest && activeTab==='sales' && <>
@@ -193,9 +199,9 @@ export default function ShajgojPanel() {
 
       <section className="card">
         <div className="card-head"><div><h2>Shajgoj flags</h2><p>Account-specific flags using the latest stock observation, latest cumulative sales period and previous observed stock date where available.</p></div>
-          <select value={severityFilter} onChange={(e)=>setSeverityFilter(e.target.value as any)}>
+          <div className="table-actions"><select value={severityFilter} onChange={(e)=>setSeverityFilter(e.target.value as any)}>
             <option value="all">All severities</option><option value="critical">Critical</option><option value="warning">Warning</option><option value="watch">Watch</option><option value="positive">Positive</option>
-          </select>
+          </select><button className="button secondary compact" onClick={exportFlags} disabled={!visibleFlags.length}><Download size={15}/>Export flags</button></div>
         </div>
         {visibleFlags.length ? <div className="table-wrap"><table><thead><tr><th>Severity</th><th>Flag</th><th>Basepack</th><th>Brand</th><th>Stock</th><th>Sold qty</th><th>Days cover</th><th>Reason</th></tr></thead><tbody>{visibleFlags.map((row,idx)=><tr key={`${row.packsize}-${row.flag_type}-${idx}`}><td><span className={`flag-pill ${row.severity}`}>{row.severity}</span></td><td><strong>{row.flag_type.replaceAll('_',' ')}</strong></td><td>{row.packsize}</td><td>{join(row.brands)}</td><td>{number(row.stock_qty)}</td><td>{number(row.sold_qty)}</td><td>{row.days_of_cover===null?'—':Number(row.days_of_cover).toFixed(1)}</td><td>{row.reason}</td></tr>)}</tbody></table></div> : <div className="empty">No Shajgoj flags match this severity.</div>}
       </section>
