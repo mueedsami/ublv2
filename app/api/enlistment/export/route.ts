@@ -55,7 +55,12 @@ export async function POST(request: NextRequest) {
     });
     if (logError) throw logError;
 
-    return new NextResponse(output.buffer, {
+    // Next.js 16's Response typings do not accept a Node.js Buffer directly as BodyInit.
+    // Copy it into a standard Uint8Array backed by an ArrayBuffer.
+    const responseBody = new Uint8Array(output.buffer.byteLength);
+    responseBody.set(output.buffer);
+
+    return new NextResponse(responseBody, {
       status: 200,
       headers: {
         'Content-Type': output.contentType,

@@ -146,7 +146,9 @@ async function latestDate(
     .order(dateColumn, { ascending: false })
     .limit(1);
   if (error) throw error;
-  return data?.[0]?.[dateColumn] ? String(data[0][dateColumn]) : null;
+  const rows = (data ?? []) as unknown as Array<Record<string, unknown>>;
+  const value = rows[0]?.[dateColumn];
+  return value === null || value === undefined || value === '' ? null : String(value);
 }
 
 async function darazMetrics(targets: TargetSku[], monthStart: string, asOf: string): Promise<Partial<DashboardMetricRow>> {
