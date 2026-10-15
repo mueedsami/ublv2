@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Play, RefreshCw, Search, Target } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCircle2, Play, RefreshCw, RotateCcw, Search, Target } from 'lucide-react';
+import { SosComposition, SosLeaderboard, SosMetricTiles, SosRing } from '@/components/SosVisuals';
 
 type RunRow = {
   id: string;
@@ -254,6 +255,14 @@ export default function SosOthobaReport() {
     .filter((row) => numeric(row.target_opportunities) > 0 && numeric(row.target_achievement) < 0.999999)
     .sort((a, b) => numeric(a.target_achievement) - numeric(b.target_achievement)), [filteredKeywords]);
 
+  const keywordVisualRows = useMemo(() => [...filteredKeywords]
+    .sort((a, b) => numeric(a.target_achievement) - numeric(b.target_achievement))
+    .slice(0, 8)
+    .map((row) => ({ key: row.keyword_id, label: row.keyword, note: row.format, sos: row.ubl_sos, target: row.target_achievement, danger: numeric(row.target_achievement) < 0.75 })), [filteredKeywords]);
+  const strongestKeyword = useMemo(() => [...filteredKeywords].filter((row) => row.ubl_sos !== null).sort((a, b) => numeric(b.ubl_sos) - numeric(a.ubl_sos))[0] || null, [filteredKeywords]);
+  const weakestTargetKeyword = needsAttention[0] || null;
+  const resetFilters = () => { setFormatFilter('all'); setKeywordFilter('all'); setTermFilter('all'); setClassificationFilter('all'); setResultQuery(''); };
+
   return <div className="page sos-report-page">
     <div className="page-head sos-report-head">
       <div>
@@ -285,8 +294,20 @@ export default function SosOthobaReport() {
     {data?.run && <>
       {data.run.error_count > 0 && <div className="alert warning sos-top-alert"><AlertTriangle size={17}/>{data.run.error_count} search term(s) failed in this run. Failed terms are excluded from SoS and Target Achievement instead of being treated as zero.</div>}
 
-      <section className="card sos-filter-card">
-        <div className="card-head"><div><h2>Report filters</h2><p>Every KPI and detailed result below reacts to these filters.</p></div></div>
+      <section className="sos-insight-hero sos-insight-hero-othoba">
+        <div className="sos-insight-copy"><span className="sos-insight-kicker">Othoba search visibility</span><h2>{pct(summary.ublSos)} UBL share across the measured top 4</h2><p>UBL visibility and assigned-target achievement are deliberately separated. A non-target UBL product improves share of search, but does not satisfy the target-product objective.</p><div className="sos-insight-meta"><span>Run <strong>{dateTime(data.run.started_at)}</strong></span><span>Completed <strong>{summary.termsOk}/{summary.termsTotal}</strong></span><span>Measured slots <strong>{summary.topSlots}</strong></span><span>Failed <strong>{summary.failed}</strong></span></div></div>
+        <div className="sos-dual-rings"><SosRing value={summary.ublSos} label="UBL SoS" note={`${summary.ublCount}/${summary.topSlots} top positions`}/><SosRing value={summary.targetAchievement} label="Target achievement" tone="target" note={`${summary.targetHits}/${summary.targetOpportunities} target opportunities`}/></div>
+      </section>
+
+      <section className="sos-report-kpis sos-report-kpis-heavy">
+        <div className="kpi hero"><span>UBL Share of Search</span><strong>{pct(summary.ublSos)}</strong><small>{summary.ublCount}/{summary.topSlots} top-4 positions are UBL</small></div>
+        <div className="kpi target-kpi"><span>Target Achievement</span><strong>{pct(summary.targetAchievement)}</strong><small>{summary.targetHits}/{summary.targetOpportunities} expected target appearances achieved</small></div>
+        <div className="kpi"><span>Completed terms</span><strong>{summary.termsOk}/{summary.termsTotal}</strong><small>{summary.failed ? `${summary.failed} failed and excluded` : 'All selected terms completed'}</small></div>
+        <div className="kpi"><span>Competitor positions</span><strong>{summary.competitors}</strong><small>Non-UBL products in the measured top 4</small></div>
+      </section>
+
+      <section className="card sos-filter-card sos-filter-workbench">
+        <div className="card-head"><div><h2>Report filters</h2><p>Every KPI and detailed result below reacts to these filters.</p></div><button className="account-reset-button" type="button" onClick={resetFilters}><RotateCcw size={14}/>Reset</button></div>
         <div className="filters sos-report-filters">
           <label><span>Format</span><select value={formatFilter} onChange={(e) => setFormatFilter(e.target.value)}><option value="all">All formats</option>{formats.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
           <label><span>Main keyword</span><select value={keywordFilter} onChange={(e) => setKeywordFilter(e.target.value)}><option value="all">All keywords</option>{keywords.map((value) => <option key={value.id} value={value.id}>{value.label}</option>)}</select></label>
@@ -296,14 +317,19 @@ export default function SosOthobaReport() {
         </div>
       </section>
 
-      <section className="sos-report-kpis">
-        <div className="kpi hero"><span>UBL Share of Search</span><strong>{pct(summary.ublSos)}</strong><small>{summary.ublCount}/{summary.topSlots} top-4 positions are UBL</small></div>
-        <div className="kpi"><span>Target Achievement</span><strong>{pct(summary.targetAchievement)}</strong><small>{summary.targetHits}/{summary.targetOpportunities} expected target appearances achieved</small></div>
-        <div className="kpi"><span>Search terms</span><strong>{summary.termsOk}/{summary.termsTotal}</strong><small>{summary.failed ? `${summary.failed} failed and excluded` : 'All selected terms completed'}</small></div>
-        <div className="kpi"><span>Target UBL hits</span><strong>{summary.targetHits}</strong><small>Distinct expected products found per searched term</small></div>
-        <div className="kpi"><span>UBL non-target</span><strong>{summary.nonTargetUbl}</strong><small>Helps UBL SoS, but not Target Achievement</small></div>
-        <div className="kpi"><span>Competitor positions</span><strong>{summary.competitors}</strong><small>Non-UBL products within the measured top 4</small></div>
+      <section className="sos-visual-grid">
+        <div className="card sos-visual-card"><div className="card-head"><div><h2>Top-4 composition</h2><p>Where the measured search real estate is going.</p></div><BarChart3 size={18}/></div><SosComposition target={Math.max(0,summary.ublCount-summary.nonTargetUbl)} nonTarget={summary.nonTargetUbl} competitor={summary.competitors} total={summary.topSlots}/></div>
+        <div className="card sos-visual-card"><div className="card-head"><div><h2>Keyword visibility pressure</h2><p>Weakest target achievement first. Click a keyword to isolate it.</p></div></div><SosLeaderboard rows={keywordVisualRows} onPick={(id)=>{ const row=filteredKeywords.find((item)=>item.keyword_id===id); if(row){setFormatFilter(row.format);setKeywordFilter(row.keyword_id);setTermFilter('all');} }}/></div>
       </section>
+
+      <section className="card sos-executive-readout"><div className="card-head"><div><h2>Executive readout</h2><p>What the current filtered scope says at a glance.</p></div></div><SosMetricTiles items={[
+        {label:'Strongest keyword',value:strongestKeyword?.keyword || '—',note:strongestKeyword?`${pct(strongestKeyword.ubl_sos)} UBL SoS`:'No measured keyword',tone:'ubl'},
+        {label:'Largest target gap',value:weakestTargetKeyword?.keyword || 'None',note:weakestTargetKeyword?`${pct(weakestTargetKeyword.target_achievement)} target achievement`:'All measured targets achieved',tone:weakestTargetKeyword?'warning':'target'},
+        {label:'UBL non-target positions',value:summary.nonTargetUbl,note:'UBL visibility outside the assigned target set',tone:'ubl'},
+        {label:'Search health',value:summary.failed?`${summary.failed} failed`:'Complete',note:`${summary.termsOk} successful checks`,tone:summary.failed?'warning':'target'},
+      ]}/></section>
+
+
 
       {needsAttention.length > 0 && <section className="card sos-attention-card">
         <div className="card-head"><div><h2>Needs attention</h2><p>Keywords where the assigned target products are not fully appearing in the top 4.</p></div></div>

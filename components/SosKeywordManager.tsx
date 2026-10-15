@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, FileSpreadsheet, PackagePlus, Search, Trash2, UploadCloud } from 'lucide-react';
+import { SosMetricTiles, SosRing } from '@/components/SosVisuals';
 
 const ACCOUNTS = [
   { code: 'pandamart', name: 'Pandamart' },
@@ -132,6 +133,10 @@ export default function SosKeywordManager() {
     unresolved: keywords.reduce((sum, row) => sum + row.unresolvedTargets.length, 0),
   }), [keywords]);
 
+  const targetCoverage = totals.keywords ? (totals.keywords - totals.withoutTargets) / totals.keywords : null;
+  const mappingCoverage = (totals.targets + totals.unresolved) ? totals.targets / (totals.targets + totals.unresolved) : null;
+  const selectedAccountName = ACCOUNTS.find((account) => account.code === accountCode)?.name || accountCode;
+
   function switchAccount(code: string) {
     setAccountCode(code);
     setFile(null);
@@ -244,7 +249,16 @@ export default function SosKeywordManager() {
       {ACCOUNTS.map((account) => <button key={account.code} className={accountCode === account.code ? 'active' : ''} onClick={() => switchAccount(account.code)}>{account.name}</button>)}
     </div>
 
-    <section className="card sos-import-card">
+    <section className="sos-library-hero">
+      <div className="sos-library-hero-copy"><span className="sos-insight-kicker">{selectedAccountName} search strategy</span><h2>{totals.keywords || 0} main keywords · {totals.terms || 0} searchable terms</h2><p>This library defines what the scraper searches and which UBL products are expected to win those search moments. Target mapping quality directly controls the Target Achievement metric.</p><SosMetricTiles items={[
+        {label:'Assigned target products',value:totals.targets,note:'Marketplace products linked to keyword expectations',tone:'target'},
+        {label:'Need mapping review',value:totals.unresolved,note:'Source target rows not confidently mapped',tone:totals.unresolved?'warning':'target'},
+        {label:'Keywords without targets',value:totals.withoutTargets,note:'Search groups with no target assignment yet',tone:totals.withoutTargets?'warning':'target'},
+      ]}/></div>
+      <div className="sos-library-rings"><SosRing value={targetCoverage} label="Target coverage" tone="target" note="Keyword groups with ≥1 target"/><SosRing value={mappingCoverage} label="Mapping readiness" note="Mapped vs mapped + unresolved target rows"/></div>
+    </section>
+
+    <section className="card sos-import-card sos-import-card-heavy">
       <div className="card-head">
         <div><h2>Import keyword workbook</h2><p>Uses the current account-wise workbook structure. Import replaces that account's active search terms, while manual target assignments are preserved.</p></div>
       </div>
@@ -278,7 +292,7 @@ export default function SosKeywordManager() {
       </div>}
     </section>
 
-    <div className="sos-kpi-grid">
+    <div className="sos-kpi-grid sos-kpi-grid-heavy">
       <div className="kpi"><span>Main keywords</span><strong>{totals.keywords}</strong><small>Canonical keyword groups for this account</small></div>
       <div className="kpi"><span>Search terms</span><strong>{totals.terms}</strong><small>Terms the scraper will eventually search</small></div>
       <div className="kpi"><span>Assigned targets</span><strong>{totals.targets}</strong><small>Expected UBL marketplace products</small></div>

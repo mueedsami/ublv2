@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Download, FileSpreadsheet, PackagePlus, RefreshCw, Search, Send, Upload, X } from 'lucide-react';
+import { Check, Download, FileSpreadsheet, PackagePlus, RefreshCw, RotateCcw, Search, Upload, X } from 'lucide-react';
 
 type Account = { id: string; code: string; name: string };
 type Target = {
@@ -127,6 +127,16 @@ export default function EnlistmentPanel() {
   const exportEligible = selectedProducts.filter((p) => p.targets.some((t) => t.selected && t.account?.code === exportAccount));
   const pendingCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && t.status !== 'enlisted').length, 0);
   const enlistedCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && t.status === 'enlisted').length, 0);
+  const selectedTaskCount = pendingCount + enlistedCount;
+  const unassignedCount = products.filter((p) => !p.targets.some((t) => t.selected)).length;
+  const attentionCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && ['needs_correction', 'rejected'].includes(t.status)).length, 0);
+  const completionPct = selectedTaskCount ? Math.round((enlistedCount / selectedTaskCount) * 100) : 0;
+  const accountProgress = useMemo(() => accounts.map((account) => {
+    const targets = products.flatMap((product) => product.targets).filter((target) => target.selected && target.account?.code === account.code);
+    const enlisted = targets.filter((target) => target.status === 'enlisted').length;
+    const attention = targets.filter((target) => ['needs_correction', 'rejected'].includes(target.status)).length;
+    return { account, total: targets.length, enlisted, attention, pct: targets.length ? Math.round((enlisted / targets.length) * 100) : 0 };
+  }).filter((row) => row.total > 0), [accounts, products]);
 
   async function inspectFile(file: File) {
     setBusy(true); setError(''); setNotice(''); setPreview(null);
@@ -210,9 +220,9 @@ export default function EnlistmentPanel() {
     setChecked((old) => { const next = new Set(old); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }
 
-  return <div className="page enlistment-page">
+  return <div className="page enlistment-page enlistment-page-polished">
     <div className="page-head enlistment-head">
-      <div><span className="eyebrow">Enlistment Panel</span><h1>Product enlistment workspace</h1><p>Upload the UBL enlistment master once, manually choose target accounts, track account-wise progress, and export each marketplace in the format it requires.</p></div>
+      <div><span className="eyebrow">Enlistment Panel</span><h1>Product enlistment workspace</h1><p>Upload the UBL product master, choose target accounts manually, track marketplace progress and export the exact template each account needs.</p></div>
       <div className="enlistment-head-actions">
         <input ref={fileRef} type="file" accept=".csv,.xlsx" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void inspectFile(f); }} />
         <button className="button" onClick={() => fileRef.current?.click()} disabled={busy}><Upload size={16}/>{busy ? 'Working…' : 'Upload enlistment file'}</button>
@@ -231,52 +241,60 @@ export default function EnlistmentPanel() {
       <div className="enlistment-preview-actions"><button className="button" onClick={() => void commitImport()} disabled={busy}><PackagePlus size={16}/>Import products</button><span>Existing products are updated by barcode; their account selections and statuses are preserved.</span></div>
     </section>}
 
-    <section className="enlistment-kpis">
-      <div className="kpi hero"><span>Products</span><strong>{products.length}</strong><small>Current enlistment master</small></div>
-      <div className="kpi"><span>Selected account tasks</span><strong>{pendingCount + enlistedCount}</strong><small>Across all products</small></div>
-      <div className="kpi"><span>Still in progress</span><strong>{pendingCount}</strong><small>Selected accounts not yet enlisted</small></div>
-      <div className="kpi"><span>Enlisted</span><strong>{enlistedCount}</strong><small>Account-product confirmations</small></div>
+    <section className="enlistment-summary-card">
+      <div className="enlistment-summary-copy"><span className="eyebrow">Workflow health</span><h2>{completionPct}% of selected account tasks are enlisted</h2><p>The panel tracks every product-account combination independently. <strong>{pendingCount}</strong> task{pendingCount===1?' is':'s are'} still in progress and <strong>{unassignedCount}</strong> product{unassignedCount===1?' has':'s have'} no target account yet.</p><div className="enlistment-summary-progress"><span style={{ width: `${completionPct}%` }}/></div></div>
+      <div className="enlistment-summary-stats"><div><span>Products</span><strong>{products.length}</strong></div><div><span>Account tasks</span><strong>{selectedTaskCount}</strong></div><div><span>Enlisted</span><strong>{enlistedCount}</strong></div><div className={attentionCount ? 'attention' : ''}><span>Needs attention</span><strong>{attentionCount}</strong></div></div>
     </section>
 
-    <section className="card enlistment-toolbar-card">
+    {accountProgress.length ? <section className="card enlistment-account-progress-card">
+      <div className="card-head"><div><h2>Account progress</h2><p>A quick view of how far each marketplace has moved from selected to enlisted.</p></div></div>
+      <div className="enlistment-account-progress-grid">{accountProgress.map(({ account, total, enlisted, attention, pct }) => <button type="button" key={account.code} onClick={() => setAccountFilter(account.code)}>
+        <div className="enlistment-account-progress-top"><div><strong>{account.name}</strong><span>{accountFormat(account.code)}</span></div><b>{pct}%</b></div>
+        <div className="enlistment-account-progress-track"><span style={{ width: `${pct}%` }}/></div>
+        <div className="enlistment-account-progress-meta"><span>{enlisted}/{total} enlisted</span>{attention ? <span className="attention">{attention} need attention</span> : <span>On track</span>}</div>
+      </button>)}</div>
+    </section> : null}
+
+    <section className="card enlistment-filter-card">
+      <div className="enlistment-workbench-head"><div><span className="eyebrow">Product workbench</span><strong>{filtered.length} of {products.length} products shown</strong></div><button type="button" className="account-reset-button" onClick={() => { setQuery(''); setAccountFilter('all'); setStatusFilter('all'); }}><RotateCcw size={14}/>Reset filters</button></div>
       <div className="enlistment-filter-row">
         <label className="enlistment-search"><span>Search</span><div className="search-box"><Search size={16}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Product, barcode, brand or category"/></div></label>
         <label><span>Target account</span><select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}><option value="all">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.code}>{a.name}</option>)}</select></label>
         <label><span>Status</span><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All statuses</option>{(data?.statuses || []).map((s) => <option key={s} value={s}>{statusLabels[s] || s}</option>)}</select></label>
       </div>
+    </section>
 
-      <div className="enlistment-bulk-row">
-        <div><strong>{checked.size}</strong><span> selected</span></div>
+    <section className="enlistment-action-grid">
+      <div className="card enlistment-action-card">
+        <div className="enlistment-action-card-head"><div><span className="eyebrow">Bulk assignment</span><h2>Add target accounts</h2><p>Apply marketplace targets to the products you selected below.</p></div><strong>{checked.size}</strong></div>
         <div className="enlistment-account-pills">{accounts.map((a) => <label key={a.id} className={bulkAccounts.includes(a.code) ? 'selected' : ''}><input type="checkbox" checked={bulkAccounts.includes(a.code)} onChange={(e) => setBulkAccounts((old) => e.target.checked ? [...old, a.code] : old.filter((x) => x !== a.code))}/><span>{a.name}</span></label>)}</div>
-        <button className="button secondary" onClick={() => void bulkAssign()} disabled={busy || !checked.size || !bulkAccounts.length}><Check size={16}/>Add target accounts</button>
+        <button className="button secondary" onClick={() => void bulkAssign()} disabled={busy || !checked.size || !bulkAccounts.length}><Check size={16}/>Add to {checked.size || 0} selected product{checked.size === 1 ? '' : 's'}</button>
       </div>
-
-      <div className="enlistment-export-row">
-        <div className="enlistment-export-label"><FileSpreadsheet size={17}/><div><strong>Account export</strong><span>Only selected products already targeted to the chosen account are exported.</span></div></div>
-        <select value={exportAccount} onChange={(e) => setExportAccount(e.target.value)}>{accounts.map((a) => <option key={a.id} value={a.code}>{a.name} · {accountFormat(a.code)}</option>)}</select>
-        <select value={exportType} onChange={(e) => setExportType(e.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV (.csv)</option></select>
-        <button className="button" onClick={() => void downloadExport()} disabled={busy || !checked.size || !exportEligible.length}><Download size={16}/>Export {exportEligible.length || ''}</button>
+      <div className="card enlistment-action-card">
+        <div className="enlistment-action-card-head"><div><span className="eyebrow">Account export</span><h2>Prepare marketplace file</h2><p>Only selected products already targeted to this account will be exported.</p></div><FileSpreadsheet size={21}/></div>
+        <div className="enlistment-export-controls"><label><span>Account</span><select value={exportAccount} onChange={(e) => setExportAccount(e.target.value)}>{accounts.map((a) => <option key={a.id} value={a.code}>{a.name} · {accountFormat(a.code)}</option>)}</select></label><label><span>File type</span><select value={exportType} onChange={(e) => setExportType(e.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV (.csv)</option></select></label></div>
+        <div className="enlistment-export-footer"><span><strong>{exportEligible.length}</strong> eligible from {checked.size} selected</span><button className="button" onClick={() => void downloadExport()} disabled={busy || !checked.size || !exportEligible.length}><Download size={16}/>Export file</button></div>
       </div>
     </section>
 
-    <section className="card">
-      <div className="card-head"><div><h2>Enlistment master</h2><p>{filtered.length} of {products.length} products shown. Target accounts are always chosen manually in this panel.</p></div></div>
-      {loading ? <div className="empty">Loading enlistments…</div> : !products.length ? <div className="empty"><PackagePlus size={28}/><strong>No enlistments yet</strong><span>Upload your UBL product enlistment CSV or XLSX to start.</span></div> : <div className="table-wrap"><table className="enlistment-table"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every((p) => checked.has(p.id))} onChange={(e) => setChecked((old) => { const next = new Set(old); filtered.forEach((p) => e.target.checked ? next.add(p.id) : next.delete(p.id)); return next; })}/></th><th>Product</th><th>Barcode</th><th>Commercial</th><th>Target accounts</th><th>Updated</th><th></th></tr></thead><tbody>
-        {filtered.map((product) => { const activeTargets = product.targets.filter((t) => t.selected); return <tr key={product.id} className={openProductId === product.id ? 'active-row' : ''}>
+    <section className="card enlistment-master-card">
+      <div className="card-head"><div><h2>Enlistment master</h2><p>Target accounts are chosen manually. Open a product to manage marketplace-specific progress and Daraz fields.</p></div>{checked.size ? <span className="enlistment-selection-chip">{checked.size} selected</span> : null}</div>
+      {loading ? <div className="empty">Loading enlistments…</div> : !products.length ? <div className="empty"><PackagePlus size={28}/><strong>No enlistments yet</strong><span>Upload your UBL product enlistment CSV or XLSX to start.</span></div> : <div className="table-wrap"><table className="enlistment-table enlistment-table-polished"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every((p) => checked.has(p.id))} onChange={(e) => setChecked((old) => { const next = new Set(old); filtered.forEach((p) => e.target.checked ? next.add(p.id) : next.delete(p.id)); return next; })}/></th><th>Product</th><th>Barcode</th><th>Commercial</th><th>Account progress</th><th>Updated</th><th></th></tr></thead><tbody>
+        {filtered.map((product) => { const activeTargets = product.targets.filter((t) => t.selected); const productEnlisted = activeTargets.filter((t) => t.status === 'enlisted').length; const progress = activeTargets.length ? Math.round((productEnlisted / activeTargets.length) * 100) : 0; const hasAttention = activeTargets.some((t) => ['needs_correction', 'rejected'].includes(t.status)); return <tr key={product.id} className={openProductId === product.id ? 'active-row' : ''}>
           <td><input type="checkbox" checked={checked.has(product.id)} onChange={() => toggleCheck(product.id)}/></td>
-          <td><strong>{product.name}</strong><small>{product.brand || '—'} · {product.category || '—'}</small></td>
+          <td><div className="enlistment-product-cell"><span className="enlistment-product-mark">{(product.brand || product.name || 'P').slice(0,1).toUpperCase()}</span><div><strong>{product.name}</strong><small>{product.brand || '—'} · {product.category || '—'}</small></div></div></td>
           <td><span className="mono">{product.barcode || '—'}</span></td>
           <td><strong>{money(product.tp)} TP</strong><small>{money(product.mrp)} MRP</small></td>
-          <td>{activeTargets.length ? <div className="enlistment-status-pills">{activeTargets.map((target) => <span key={target.id} className={`dashboard-badge ${statusClass[target.status] || 'neutral'}`}>{target.account?.name || 'Account'} · {statusLabels[target.status] || target.status}</span>)}</div> : <span className="muted">No account selected</span>}</td>
+          <td>{activeTargets.length ? <div className="enlistment-product-progress"><div className="enlistment-product-progress-head"><span>{productEnlisted}/{activeTargets.length} enlisted</span><b className={hasAttention ? 'attention' : ''}>{hasAttention ? 'Needs attention' : `${progress}%`}</b></div><div className="enlistment-product-progress-track"><span style={{ width: `${progress}%` }}/></div><div className="enlistment-status-pills">{activeTargets.map((target) => <span key={target.id} className={`dashboard-badge ${statusClass[target.status] || 'neutral'}`}>{target.account?.name || 'Account'} · {statusLabels[target.status] || target.status}</span>)}</div></div> : <span className="enlistment-unassigned">No account selected</span>}</td>
           <td>{formatDate(product.updated_at)}</td>
-          <td><button className="button secondary compact" onClick={() => setOpenProductId(product.id)}>Open</button></td>
+          <td><button className="button secondary compact" onClick={() => setOpenProductId(product.id)}>Manage</button></td>
         </tr>; })}
       </tbody></table></div>}
     </section>
 
     {openProduct && <ProductDrawer product={openProduct} accounts={accounts} statuses={data?.statuses || []} busy={busy} onClose={() => setOpenProductId(null)} onSetAccounts={setAccounts} onUpdateTarget={updateTarget}/>} 
 
-    {!!data?.exports?.length && <section className="card enlistment-history-card"><div className="card-head"><div><h2>Recent exports</h2><p>Downloading a file does not automatically mark anything as sent or enlisted.</p></div></div><div className="enlistment-history-list">{data.exports.map((row: any) => <div key={row.id}><div><strong>{row.account?.name || 'Account'}</strong><span>{row.file_name}</span></div><div><span>{row.row_count} products</span><span>{row.export_format}</span><span>{formatDate(row.exported_at)}</span></div></div>)}</div></section>}
+    {!!data?.exports?.length && <section className="card enlistment-history-card"><div className="card-head"><div><h2>Recent exports</h2><p>Prepared marketplace files. Exporting does not automatically change workflow status.</p></div><span className="enlistment-history-count">{data.exports.length} recent</span></div><div className="enlistment-history-list">{data.exports.map((row: any) => <div className="enlistment-history-row" key={row.id}><div className="enlistment-history-file"><span className="enlistment-history-icon"><FileSpreadsheet size={16}/></span><div><strong>{row.file_name}</strong><span>{row.account?.name || 'Account'} · {String(row.export_format || '').toUpperCase()}</span></div></div><div className="enlistment-history-meta"><span>{row.row_count} product{Number(row.row_count)===1?'':'s'}</span><span>{formatDate(row.exported_at)}</span></div></div>)}</div></section>}
   </div>;
 }
 
@@ -285,13 +303,18 @@ function ProductDrawer({ product, accounts, statuses, busy, onClose, onSetAccoun
   onSetAccounts: (product: Product, codes: string[]) => Promise<void>;
   onUpdateTarget: (target: Target, patch: { status?: string; accountFields?: Record<string, any>; notes?: string }) => Promise<void>;
 }) {
-  const selected = product.targets.filter((t) => t.selected).map((t) => t.account?.code).filter(Boolean) as string[];
+  const selectedTargets = product.targets.filter((t) => t.selected);
+  const selected = selectedTargets.map((t) => t.account?.code).filter(Boolean) as string[];
+  const enlistedTargets = selectedTargets.filter((t) => t.status === 'enlisted').length;
+  const attentionTargets = selectedTargets.filter((t) => ['needs_correction', 'rejected'].includes(t.status)).length;
+  const drawerProgress = selectedTargets.length ? Math.round((enlistedTargets / selectedTargets.length) * 100) : 0;
   const [chosen, setChosen] = useState<string[]>(selected);
 
   useEffect(() => setChosen(selected), [product.id, product.targets.map((t) => `${t.id}:${t.selected}`).join('|')]);
 
   return <div className="enlistment-drawer-backdrop" onMouseDown={(e) => { if (e.currentTarget === e.target) onClose(); }}><aside className="enlistment-drawer">
     <div className="enlistment-drawer-head"><div><span className="eyebrow">Enlistment detail</span><h2>{product.name}</h2><p>{product.brand || '—'} · {product.barcode || 'No barcode'}</p></div><button className="icon-button" onClick={onClose}><X size={20}/></button></div>
+    <div className="enlistment-drawer-summary"><div><span>Target accounts</span><strong>{selectedTargets.length}</strong></div><div><span>Enlisted</span><strong>{enlistedTargets}</strong></div><div><span>Completion</span><strong>{drawerProgress}%</strong></div><div className={attentionTargets ? 'attention' : ''}><span>Needs attention</span><strong>{attentionTargets}</strong></div><div className="enlistment-drawer-progress"><span style={{ width: `${drawerProgress}%` }}/></div></div>
 
     <section className="enlistment-drawer-section"><h3>Product information</h3><div className="enlistment-info-grid">
       <Info label="Category" value={product.category}/><Info label="TP" value={money(product.tp)}/><Info label="MRP" value={money(product.mrp)}/><Info label="Shelf life" value={product.shelf_life_days == null ? null : `${product.shelf_life_days} days`}/><Info label="Pcs per CRM" value={product.pcs_per_crm}/><Info label="Country" value={product.country_of_origin}/><Info label="Supplier" value={product.supplier_name}/><Info label="Certification" value={product.cert_license}/><Info label="Source status" value={product.source_status}/>

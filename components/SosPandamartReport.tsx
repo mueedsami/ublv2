@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, GitCompareArrows, Play, RefreshCw, Search, Target } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCircle2, GitCompareArrows, Play, RefreshCw, RotateCcw, Search, Target } from 'lucide-react';
+import { SosComposition, SosLeaderboard, SosMetricTiles, SosRing } from '@/components/SosVisuals';
 
 type RunRow = {
   id: string;
@@ -346,6 +347,17 @@ export default function SosPandamartReport() {
     .filter((row) => row.target_opportunities > 0 && numeric(row.target_achievement) < 0.999999)
     .sort((a, b) => numeric(a.target_achievement) - numeric(b.target_achievement)), [keywordRows]);
 
+  const branchVisualRows = useMemo(() => [...branchRows]
+    .sort((a, b) => numeric(a.target_achievement) - numeric(b.target_achievement))
+    .map((row) => ({ key: row.branch_code || row.key, label: row.branch_name || row.label, note: `${row.terms_scraped}/${row.terms_attempted} checks`, sos: row.ubl_sos, target: row.target_achievement, danger: numeric(row.target_achievement) < 0.75 })), [branchRows]);
+  const keywordVisualRows = useMemo(() => [...keywordRows]
+    .sort((a, b) => numeric(a.target_achievement) - numeric(b.target_achievement))
+    .slice(0, 8)
+    .map((row) => ({ key: row.keyword_id || row.key, label: row.keyword || row.label, note: row.format, sos: row.ubl_sos, target: row.target_achievement, danger: numeric(row.target_achievement) < 0.75 })), [keywordRows]);
+  const strongestBranch = useMemo(() => [...branchRows].filter((row) => row.ubl_sos !== null).sort((a, b) => numeric(b.ubl_sos) - numeric(a.ubl_sos))[0] || null, [branchRows]);
+  const weakestBranch = useMemo(() => [...branchRows].filter((row) => row.target_achievement !== null).sort((a, b) => numeric(a.target_achievement) - numeric(b.target_achievement))[0] || null, [branchRows]);
+  const resetFilters = () => { setBranchFilter('all'); setFormatFilter('all'); setKeywordFilter('all'); setTermFilter('all'); setClassificationFilter('all'); setResultQuery(''); };
+
   const termCount = Number(data?.configuration?.latestImport?.search_terms_total || 0);
   const selectedBranch = configuredBranches.find((branch) => branch.code === runBranch);
 
@@ -391,8 +403,20 @@ export default function SosPandamartReport() {
     {data?.run && <>
       {data.run.error_count > 0 && <div className="alert warning sos-top-alert"><AlertTriangle size={17}/>{data.run.error_count} branch × search-term checks failed. Failed checks are excluded instead of being counted as zero.</div>}
 
-      <section className="card sos-filter-card">
-        <div className="card-head"><div><h2>Report filters</h2><p>Branch, format, keyword and result filters update every KPI and detailed table.</p></div></div>
+      <section className="sos-insight-hero sos-insight-hero-pandamart">
+        <div className="sos-insight-copy"><span className="sos-insight-kicker">Pandamart branch-aware search visibility</span><h2>{pct(summary.ublSos)} UBL share across the selected branch scope</h2><p>Pandamart is the most operational SoS view: every keyword is tested branch by branch, so the same product can be strong in one location and invisible in another.</p><div className="sos-insight-meta"><span>Run <strong>{dateTime(data.run.started_at)}</strong></span><span>Branches <strong>{branchRows.length}</strong></span><span>Checks <strong>{summary.termsOk}/{summary.termsTotal}</strong></span><span>Measured slots <strong>{summary.topSlots}</strong></span></div></div>
+        <div className="sos-dual-rings"><SosRing value={summary.ublSos} label="UBL SoS" note={`${summary.ublCount}/${summary.topSlots} top positions`}/><SosRing value={summary.targetAchievement} label="Target achievement" tone="target" note={`${summary.targetHits}/${summary.targetOpportunities} target opportunities`}/></div>
+      </section>
+
+      <section className="sos-report-kpis sos-report-kpis-heavy">
+        <div className="kpi hero"><span>UBL Share of Search</span><strong>{pct(summary.ublSos)}</strong><small>{summary.ublCount}/{summary.topSlots} measured top-4 positions are UBL</small></div>
+        <div className="kpi target-kpi"><span>Target Achievement</span><strong>{pct(summary.targetAchievement)}</strong><small>{summary.targetHits}/{summary.targetOpportunities} expected target appearances achieved</small></div>
+        <div className="kpi"><span>Completed checks</span><strong>{summary.termsOk}/{summary.termsTotal}</strong><small>{summary.failed ? `${summary.failed} failed and excluded` : 'All selected checks completed'}</small></div>
+        <div className="kpi"><span>Competitor positions</span><strong>{summary.competitors}</strong><small>Non-UBL results in measured top 4</small></div>
+      </section>
+
+      <section className="card sos-filter-card sos-filter-workbench">
+        <div className="card-head"><div><h2>Report filters</h2><p>Branch, format, keyword and result filters update every KPI and detailed table.</p></div><button className="account-reset-button" type="button" onClick={resetFilters}><RotateCcw size={14}/>Reset</button></div>
         <div className="filters sos-report-filters sos-panda-filters">
           <label><span>Branch</span><select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}><option value="all">All branches in run</option>{runBranches.map((branch) => <option key={branch.code} value={branch.code}>{branch.name}</option>)}</select></label>
           <label><span>Format</span><select value={formatFilter} onChange={(e) => setFormatFilter(e.target.value)}><option value="all">All formats</option>{formats.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
@@ -403,14 +427,21 @@ export default function SosPandamartReport() {
         </div>
       </section>
 
-      <section className="sos-report-kpis">
-        <div className="kpi hero"><span>UBL Share of Search</span><strong>{pct(summary.ublSos)}</strong><small>{summary.ublCount}/{summary.topSlots} measured top-4 positions are UBL</small></div>
-        <div className="kpi"><span>Target Achievement</span><strong>{pct(summary.targetAchievement)}</strong><small>{summary.targetHits}/{summary.targetOpportunities} expected target appearances achieved</small></div>
-        <div className="kpi"><span>Branch × terms</span><strong>{summary.termsOk}/{summary.termsTotal}</strong><small>{summary.failed ? `${summary.failed} failed and excluded` : 'All selected checks completed'}</small></div>
-        <div className="kpi"><span>Target UBL hits</span><strong>{summary.targetHits}</strong><small>Distinct expected products found per search check</small></div>
-        <div className="kpi"><span>UBL non-target</span><strong>{summary.nonTargetUbl}</strong><small>UBL visibility that does not meet the target assignment</small></div>
-        <div className="kpi"><span>Competitor positions</span><strong>{summary.competitors}</strong><small>Non-UBL positions in the measured top 4</small></div>
+      <section className="sos-visual-grid sos-panda-visual-grid">
+        <div className="card sos-visual-card"><div className="card-head"><div><h2>Branch visibility comparison</h2><p>Weakest target achievement first. Click a branch to isolate it.</p></div></div><SosLeaderboard rows={branchVisualRows} onPick={(code)=>setBranchFilter(code)}/></div>
+        <div className="card sos-visual-card"><div className="card-head"><div><h2>Top-4 composition</h2><p>UBL target, UBL non-target and competitor share within the selected scope.</p></div><BarChart3 size={18}/></div><SosComposition target={Math.max(0,summary.ublCount-summary.nonTargetUbl)} nonTarget={summary.nonTargetUbl} competitor={summary.competitors} total={summary.topSlots}/><div className="sos-branch-callouts"><div><span>Strongest branch</span><strong>{strongestBranch?.branch_name || '—'}</strong><small>{strongestBranch?`${pct(strongestBranch.ubl_sos)} UBL SoS`:'No branch data'}</small></div><div><span>Largest target gap</span><strong>{weakestBranch?.branch_name || '—'}</strong><small>{weakestBranch?`${pct(weakestBranch.target_achievement)} target achievement`:'No branch data'}</small></div></div></div>
       </section>
+
+      <section className="card sos-visual-card sos-keyword-pressure-card"><div className="card-head"><div><h2>Keyword pressure by branch scope</h2><p>The weakest target-product outcomes rise to the top.</p></div></div><SosLeaderboard rows={keywordVisualRows} onPick={(id)=>{const row=keywordRows.find((item)=>(item.keyword_id || item.key)===id);if(row){if(row.format)setFormatFilter(row.format);if(row.keyword_id)setKeywordFilter(row.keyword_id);setTermFilter('all');}}}/></section>
+
+      <section className="card sos-executive-readout"><div className="card-head"><div><h2>Executive readout</h2><p>What the selected Pandamart branch scope says immediately.</p></div></div><SosMetricTiles items={[
+        {label:'Strongest branch',value:strongestBranch?.branch_name || '—',note:strongestBranch?`${pct(strongestBranch.ubl_sos)} UBL SoS`:'No measured branch',tone:'ubl'},
+        {label:'Weakest target branch',value:weakestBranch?.branch_name || '—',note:weakestBranch?`${pct(weakestBranch.target_achievement)} target achievement`:'No measured branch',tone:'warning'},
+        {label:'UBL non-target positions',value:summary.nonTargetUbl,note:'Visibility helping SoS but not target achievement',tone:'ubl'},
+        {label:'Search health',value:summary.failed?`${summary.failed} failed`:'Complete',note:`${summary.termsOk} successful branch × term checks`,tone:summary.failed?'warning':'target'},
+      ]}/></section>
+
+
 
       {branchRows.length > 1 && <section className="card">
         <div className="card-head"><div><h2>Branch comparison</h2><p>Compare search visibility across branches while keeping the current format/keyword/search-term filters.</p></div></div>

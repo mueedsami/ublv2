@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Download, RefreshCw, RotateCcw, ShieldAlert } from 'lucide-react';
 import { exportCsv } from '@/lib/csv-export';
+import { AccountRing, FilterField, FlagMetricChips, HorizontalBars, MiniTrend, SearchField, SeverityStrip, olaTone } from '@/components/AccountVisuals';
 
 type BasepackRow = {
   stock_date: string;
@@ -15,206 +16,99 @@ type BasepackRow = {
   is_available: boolean;
 };
 
-type DailyRow = {
-  stock_date: string;
-  expected_basepacks: number;
-  available_basepacks: number;
-  unavailable_basepacks: number;
-  ola_pct: number | null;
-  total_stock: number;
-};
-
-type MonthlyRow = {
-  month_start: string;
-  days_with_data: number;
-  avg_ola_pct: number | null;
-  min_ola_pct: number | null;
-  max_ola_pct: number | null;
-  first_stock_date: string;
-  last_stock_date: string;
-};
-
-type SalesSnapshot = {
-  period_start: string;
-  period_end: string;
-  is_complete_month: boolean;
-  sku_rows: number;
-  selling_skus: number;
-  sold_qty: number;
-  sales_value: number;
-};
-
+type DailyRow = { stock_date: string; expected_basepacks: number; available_basepacks: number; unavailable_basepacks: number; ola_pct: number | null; total_stock: number; };
+type MonthlyRow = { month_start: string; days_with_data: number; avg_ola_pct: number | null; min_ola_pct: number | null; max_ola_pct: number | null; first_stock_date: string; last_stock_date: string; };
+type SalesSnapshot = { period_start: string; period_end: string; is_complete_month: boolean; sku_rows: number; selling_skus: number; sold_qty: number; sales_value: number; };
+type MonthlySalesRow = { month_start: string; period_end: string; is_complete_month: boolean; sold_qty: number; sales_value: number; };
 type FlagRow = {
   stock_date: string; previous_stock_date: string | null; packsize: string; brands: string[] | null; business_groups: string[] | null; categories: string[] | null; sub_categories: string[] | null; stock_qty: number; previous_stock_qty: number | null; sold_qty: number; sales_value: number; period_start: string | null; period_end: string | null; days_of_cover: number | null; flag_type: string; severity: 'critical' | 'warning' | 'watch' | 'positive'; reason: string; priority: number;
 };
-
 type FlagSummary = { stock_date: string; total_flags: number; critical_flags: number; warning_flags: number; watch_flags: number; positive_flags: number; flagged_basepacks: number; };
-
 type TabKey = 'overview' | 'stock' | 'sales' | 'daily' | 'monthly' | 'flags';
+type SeverityFilter = 'all' | FlagRow['severity'];
+type AvailabilityFilter = 'all' | 'available' | 'unavailable';
+
 const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'stock', label: 'Current Stock' },
-  { key: 'sales', label: 'Sales History' },
-  { key: 'daily', label: 'Daily OLA' },
-  { key: 'monthly', label: 'Monthly OLA' },
-  { key: 'flags', label: 'Flags' },
+  { key: 'overview', label: 'Overview' }, { key: 'stock', label: 'Current Stock' }, { key: 'sales', label: 'Sales History' }, { key: 'flags', label: 'Flags' }, { key: 'daily', label: 'Daily OLA' }, { key: 'monthly', label: 'Monthly OLA' },
 ];
+const pct=(v:number|null|undefined)=>v==null?'—':`${Number(v).toFixed(2)}%`;
+const number=(v:number|null|undefined)=>v==null?'—':Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
+const money=(v:number|null|undefined)=>v==null?'—':`৳${Number(v).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+const dateLabel=(v:string|null|undefined)=>!v?'—':new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(`${v}T00:00:00`));
+const shortDate=(v:string)=>new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short'}).format(new Date(`${v}T00:00:00`));
+const monthLabel=(v:string)=>new Intl.DateTimeFormat('en-GB',{month:'short',year:'numeric'}).format(new Date(`${v}T00:00:00`));
+const join=(v:string[]|null)=>v?.length?v.join(' · '):'—';
+const labelize=(v:string)=>v.replaceAll('_',' ').replace(/\b\w/g,(m)=>m.toUpperCase());
+const divide=(a:number|null|undefined,b:number|null|undefined,multiplier=1)=>{const x=Number(a??0),y=Number(b??0);return y?(x/y)*multiplier:null;};
+const daysInclusive=(start:string|null|undefined,end:string|null|undefined)=>{if(!start||!end)return null;const a=new Date(`${start}T00:00:00`).getTime(),b=new Date(`${end}T00:00:00`).getTime();return Math.max(1,Math.round((b-a)/86400000)+1);};
+const deltaPct=(current:number|null|undefined,previous:number|null|undefined)=>{const c=Number(current??0),p=Number(previous??0);return p?((c-p)/p)*100:null;};
+const signedPct=(v:number|null|undefined)=>v==null?'—':`${Number(v)>=0?'+':''}${Number(v).toFixed(1)}%`;
 
-function pct(value: number | null | undefined) {
-  return value === null || value === undefined ? '—' : `${Number(value).toFixed(2)}%`;
-}
-function number(value: number | null | undefined) {
-  return value === null || value === undefined ? '—' : Number(value).toLocaleString();
-}
-function dateLabel(value: string | null | undefined) {
-  if (!value) return '—';
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
-}
-function monthLabel(value: string) {
-  return new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
-}
-function join(values: string[] | null) {
-  return values?.length ? values.join(' · ') : '—';
-}
+export default function ShajgojPanel(){
+  const[current,setCurrent]=useState<BasepackRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[monthly,setMonthly]=useState<MonthlyRow[]>([]),[salesSnapshots,setSalesSnapshots]=useState<SalesSnapshot[]>([]),[monthlySales,setMonthlySales]=useState<MonthlySalesRow[]>([]),[flags,setFlags]=useState<FlagRow[]>([]);
+  const[flagSummary,setFlagSummary]=useState<FlagSummary|null>(null),[severityFilter,setSeverityFilter]=useState<SeverityFilter>('all'),[flagTypeFilter,setFlagTypeFilter]=useState('all'),[flagSearch,setFlagSearch]=useState('');
+  const[availabilityFilter,setAvailabilityFilter]=useState<AvailabilityFilter>('all'),[stockSearch,setStockSearch]=useState(''),[brandFilter,setBrandFilter]=useState('all');
+  const[activeTab,setActiveTab]=useState<TabKey>('overview'),[loading,setLoading]=useState(true),[error,setError]=useState('');
 
-export default function ShajgojPanel() {
-  const [current, setCurrent] = useState<BasepackRow[]>([]);
-  const [daily, setDaily] = useState<DailyRow[]>([]);
-  const [monthly, setMonthly] = useState<MonthlyRow[]>([]);
-  const [salesSnapshots, setSalesSnapshots] = useState<SalesSnapshot[]>([]);
-  const [monthlySales, setMonthlySales] = useState<SalesSnapshot[]>([]);
-  const [flags, setFlags] = useState<FlagRow[]>([]);
-  const [flagSummary, setFlagSummary] = useState<FlagSummary | null>(null);
-  const [severityFilter, setSeverityFilter] = useState<'all' | FlagRow['severity']>('all');
-  const [availabilityFilter, setAvailabilityFilter] = useState<'all'|'available'|'unavailable'>('all');
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  async function load(){setLoading(true);setError('');try{const res=await fetch('/api/shajgoj',{cache:'no-store'});const json=await res.json();if(!res.ok)throw new Error(json.error||'Failed to load Shajgoj intelligence.');setCurrent(json.current||[]);setDaily(json.daily||[]);setMonthly(json.monthly||[]);setSalesSnapshots(json.salesSnapshots||[]);setMonthlySales(json.monthlySales||[]);setFlags(json.flags||[]);setFlagSummary(json.flagSummary||null);}catch(e){setError(e instanceof Error?e.message:'Failed to load Shajgoj intelligence.');}finally{setLoading(false)}}
+  useEffect(()=>{void load()},[]);
 
-  async function load() {
-    setLoading(true); setError('');
-    try {
-      const res = await fetch('/api/shajgoj', { cache: 'no-store' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to load Shajgoj intelligence.');
-      setCurrent(json.current || []);
-      setDaily(json.daily || []);
-      setMonthly(json.monthly || []);
-      setSalesSnapshots(json.salesSnapshots || []);
-      setMonthlySales(json.monthlySales || []);
-      setFlags(json.flags || []);
-      setFlagSummary(json.flagSummary || null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load Shajgoj intelligence.');
-    } finally { setLoading(false); }
-  }
+  const latest=daily[0]??null,currentMonth=monthly[0]??null,latestSales=salesSnapshots[0]??null,latestSalesMonth=monthlySales[0]??null,previousSalesMonth=monthlySales[1]??null;
+  const currentSalesDays=daysInclusive(latestSalesMonth?.month_start,latestSalesMonth?.period_end),previousSalesDays=daysInclusive(previousSalesMonth?.month_start,previousSalesMonth?.period_end);
+  const currentQtyPace=divide(latestSalesMonth?.sold_qty,currentSalesDays),previousQtyPace=divide(previousSalesMonth?.sold_qty,previousSalesDays);
+  const currentValuePace=divide(latestSalesMonth?.sales_value,currentSalesDays),previousValuePace=divide(previousSalesMonth?.sales_value,previousSalesDays);
+  const qtyPaceDelta=deltaPct(currentQtyPace,previousQtyPace),valuePaceDelta=deltaPct(currentValuePace,previousValuePace);
+  const latestAsp=divide(latestSalesMonth?.sales_value,latestSalesMonth?.sold_qty);
+  const sellingShare=divide(latestSales?.selling_skus,latestSales?.sku_rows,100);
+  const brands=useMemo(()=>Array.from(new Set(current.flatMap((r)=>r.brands??[]))).filter(Boolean).sort(),[current]);
+  const filteredCurrent=useMemo(()=>{const q=stockSearch.trim().toLowerCase();return current.filter((r)=>{const availabilityOk=availabilityFilter==='all'||(availabilityFilter==='available'?r.is_available:!r.is_available);const brandOk=brandFilter==='all'||(r.brands??[]).includes(brandFilter);const searchOk=!q||`${r.packsize} ${join(r.brands)} ${join(r.categories)}`.toLowerCase().includes(q);return availabilityOk&&brandOk&&searchOk;});},[current,availabilityFilter,brandFilter,stockSearch]);
+  const flagTypes=useMemo(()=>Array.from(new Set(flags.map((r)=>r.flag_type))).sort(),[flags]);
+  const visibleFlags=useMemo(()=>{const q=flagSearch.trim().toLowerCase();return flags.filter((r)=>(severityFilter==='all'||r.severity===severityFilter)&&(flagTypeFilter==='all'||r.flag_type===flagTypeFilter)&&(!q||`${r.packsize} ${join(r.brands)} ${r.flag_type} ${r.reason}`.toLowerCase().includes(q)));},[flags,severityFilter,flagTypeFilter,flagSearch]);
+  const recentDaily=useMemo(()=>daily.slice(0,14).reverse(),[daily]);
+  const criticalFlags=flags.filter((r)=>r.severity==='critical');
+  const warningFlags=flags.filter((r)=>r.severity==='warning');
+  const watchFlags=flags.filter((r)=>r.severity==='watch');
+  const positiveFlags=flags.filter((r)=>r.severity==='positive');
+  const flagTypeRows=useMemo(()=>{const m=new Map<string,number>();flags.forEach((r)=>m.set(r.flag_type,(m.get(r.flag_type)??0)+1));return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([label,value])=>({label:labelize(label),value,tone:'warning' as const}));},[flags]);
+  const priorityFlags=useMemo(()=>flags.filter((r)=>r.severity==='critical').slice(0,6),[flags]);
+  const topStock=useMemo(()=>[...current].sort((a,b)=>Number(b.stock_qty)-Number(a.stock_qty)).slice(0,8),[current]);
+  const monthlyValueRows=useMemo(()=>monthlySales.slice(0,6).reverse().map((r)=>({label:monthLabel(r.month_start),value:Number(r.sales_value||0),note:`${number(r.sold_qty)} units · through ${dateLabel(r.period_end)}`,tone:'good' as const})),[monthlySales]);
+  const monthlyQtyRows=useMemo(()=>monthlySales.slice(0,6).reverse().map((r)=>({label:monthLabel(r.month_start),value:Number(r.sold_qty||0),note:`${money(r.sales_value)} sales value`,tone:'excellent' as const})),[monthlySales]);
 
-  useEffect(() => { void load(); }, []);
+  const exportCurrent=()=>exportCsv(`shajgoj-${availabilityFilter}-products`,filteredCurrent.map((r)=>({Date:r.stock_date,Basepack:r.packsize,Brand:join(r.brands),Business_Unit:join(r.business_groups),Category:join(r.categories),Sub_Category:join(r.sub_categories),Stock:r.stock_qty,Status:r.is_available?'Available':'Unavailable'})));
+  const exportFlags=()=>exportCsv('shajgoj-flags',visibleFlags.map((r)=>({Severity:r.severity,Flag:labelize(r.flag_type),Basepack:r.packsize,Brand:join(r.brands),Stock:r.stock_qty,Sold_Qty:r.sold_qty,Sales_Value:r.sales_value,Days_Cover:r.days_of_cover,Reason:r.reason,Stock_Date:r.stock_date})));
+  const resetFlagFilters=()=>{setSeverityFilter('all');setFlagTypeFilter('all');setFlagSearch('');};
 
-  const filteredCurrent = useMemo(() => current.filter((r) => availabilityFilter==='all' || (availabilityFilter==='available' ? r.is_available : !r.is_available)), [current, availabilityFilter]);
-  const latest = daily[0] ?? null;
-  const currentMonth = monthly[0] ?? null;
-  const latestSales = salesSnapshots[0] ?? null;
-  const availableStock = useMemo(() => current.filter((row) => row.is_available).length, [current]);
-  const visibleFlags = useMemo(() => severityFilter==='all' ? flags : flags.filter((row)=>row.severity===severityFilter), [flags, severityFilter]);
+  return <div className="account-intelligence-page pandamart-dashboard">
+    <section className="account-command-card"><div className="account-command-top"><div className="pandamart-tabs account-tabs-heavy" role="tablist" aria-label="Shajgoj sections">{TABS.map((tab)=><button key={tab.key} type="button" role="tab" aria-selected={activeTab===tab.key} className={activeTab===tab.key?'active':''} onClick={()=>setActiveTab(tab.key)}>{tab.label}{tab.key==='flags'&&flags.length?<span className="tab-count alert-count">{flags.length}</span>:null}</button>)}</div><button className="button secondary compact" onClick={()=>void load()} disabled={loading}><RefreshCw size={15}/>{loading?'Loading':'Refresh'}</button></div><div className="account-command-note"><span>Stock and cumulative sales are shown on their own actual observation periods—missing dates are never filled forward.</span></div></section>
+    {error?<div className="alert error pandamart-alert">{error}</div>:null}
+    {loading&&!latest?<section className="card"><div className="empty">Loading Shajgoj intelligence…</div></section>:null}
+    {!loading&&!latest&&!error?<section className="card"><div className="empty">No Shajgoj stock history yet. Upload a Shajgoj workbook and choose the stock date to start this dashboard.</div></section>:null}
 
-  function exportCurrent() { exportCsv(`shajgoj-${availabilityFilter}-products`, filteredCurrent.map((r)=>({ Date:r.stock_date, Basepack:r.packsize, Brand:join(r.brands), Business_Unit:join(r.business_groups), Category:join(r.categories), Sub_Category:join(r.sub_categories), Stock:r.stock_qty, Status:r.is_available?'Available':'Unavailable' }))); }
-  function exportFlags() { exportCsv('shajgoj-flags', visibleFlags.map((r)=>({ Severity:r.severity, Flag:r.flag_type.replaceAll('_',' '), Basepack:r.packsize, Brand:join(r.brands), Stock:r.stock_qty, Sold_Qty:r.sold_qty, Days_Cover:r.days_of_cover, Reason:r.reason, Stock_Date:r.stock_date }))); }
+    {latest&&activeTab==='overview'?<>
+      <section className="account-hero account-hero-shajgoj"><div className="account-hero-copy"><span className="account-hero-kicker">Shajgoj commercial availability</span><h2>{pct(latest.ola_pct)} current OLA</h2><p>{latest.available_basepacks} of {latest.expected_basepacks} mapped basepacks are available. Latest cumulative sales show {number(latestSales?.sold_qty)} units sold through {dateLabel(latestSales?.period_end)}.</p><div className="account-hero-meta"><span>Stock date <strong>{dateLabel(latest.stock_date)}</strong></span><span>Total stock <strong>{number(latest.total_stock)}</strong></span><span>Critical flags <strong>{criticalFlags.length}</strong></span></div></div><AccountRing value={latest.ola_pct} label="Current OLA" note={`${latest.unavailable_basepacks} basepacks currently out`}/></section>
+      <section className="account-kpi-grid"><div className="account-kpi"><span>Current OLA</span><strong>{pct(latest.ola_pct)}</strong><small>{latest.available_basepacks}/{latest.expected_basepacks} available</small></div><div className="account-kpi"><span>Current stock</span><strong>{number(latest.total_stock)}</strong><small>Mapped units as of {dateLabel(latest.stock_date)}</small></div><div className="account-kpi"><span>Latest MTD sold</span><strong>{number(latestSales?.sold_qty)}</strong><small>{latestSales?`${dateLabel(latestSales.period_start)} → ${dateLabel(latestSales.period_end)}`:'No sales snapshot'}</small></div><div className="account-kpi"><span>Latest MTD sales value</span><strong>{money(latestSales?.sales_value)}</strong><small>Source cumulative sales value</small></div></section>
+      <section className="account-number-strip"><div><span>Selling SKUs</span><strong>{number(latestSales?.selling_skus)}</strong><small>{sellingShare==null?'—':`${sellingShare.toFixed(1)}% of ${number(latestSales?.sku_rows)} SKU rows`}</small></div><div><span>Avg value / sold unit</span><strong>{money(latestAsp)}</strong><small>Sales value ÷ Sold Qty</small></div><div><span>Current sold pace</span><strong>{number(currentQtyPace)}/day</strong><small>{signedPct(qtyPaceDelta)} vs previous month pace</small></div><div className={criticalFlags.length?'danger':'positive'}><span>Critical flags</span><strong>{criticalFlags.length}</strong><small>{flagSummary?.flagged_basepacks??0} flagged basepacks</small></div></section>
+      <section className="account-visual-grid"><div className="card account-chart-card"><div className="card-head"><div><h2>Recent OLA trend</h2><p>Actual stock observations, with the percentage shown at each point.</p></div></div><MiniTrend rows={recentDaily.map((r)=>({label:shortDate(r.stock_date),value:r.ola_pct}))}/></div><div className="card account-chart-card"><div className="card-head"><div><h2>Monthly sales value</h2><p>Latest cumulative snapshot for each month.</p></div></div><HorizontalBars rows={monthlyValueRows} prefix="৳" suffix=""/></div></section>
+      <section className="account-visual-grid"><div className="card account-chart-card"><div className="card-head"><div><h2>Largest current stock positions</h2><p>Mapped basepacks with the largest current stock.</p></div></div><HorizontalBars rows={topStock.map((r)=>({label:r.packsize,value:Number(r.stock_qty),note:join(r.brands),tone:r.is_available?'good':'critical'}))} suffix="" onPick={(label)=>{setStockSearch(label);setActiveTab('stock');}}/></div><div className="card account-chart-card"><div className="card-head"><div><h2>Sales pace</h2><p>Current MTD daily pace versus the previous month daily pace.</p></div></div><div className="account-number-comparison"><div><span>Sold qty / day</span><strong>{number(currentQtyPace)}</strong><small>Previous {number(previousQtyPace)} · {signedPct(qtyPaceDelta)}</small></div><div><span>Sales value / day</span><strong>{money(currentValuePace)}</strong><small>Previous {money(previousValuePace)} · {signedPct(valuePaceDelta)}</small></div><div><span>Month avg OLA</span><strong>{pct(currentMonth?.avg_ola_pct)}</strong><small>{currentMonth?`${currentMonth.days_with_data} observed dates`:'No monthly history'}</small></div><div><span>Unavailable now</span><strong>{number(latest.unavailable_basepacks)}</strong><small>of {number(latest.expected_basepacks)} mapped basepacks</small></div></div></div></section>
+      {priorityFlags.length?<section className="card account-attention-card"><div className="card-head"><div><h2>Immediate action queue</h2><p>Critical Shajgoj availability and demand signals.</p></div><button className="button secondary compact" onClick={()=>setActiveTab('flags')}>Open all flags</button></div><div className="account-attention-grid">{priorityFlags.map((r)=><button type="button" key={`${r.packsize}-${r.flag_type}`} onClick={()=>{setFlagSearch(r.packsize);setActiveTab('flags');}}><span><ShieldAlert size={14}/> {labelize(r.flag_type)}</span><strong>{r.packsize}</strong><p>{r.reason}</p></button>)}</div></section>:null}
+    </>:null}
 
-  return <div className="pandamart-dashboard">
-    <div className="pandamart-tabbar">
-      <div className="pandamart-tabs" role="tablist" aria-label="Shajgoj sections">
-        {TABS.map((tab) => <button key={tab.key} type="button" role="tab" aria-selected={activeTab===tab.key} className={activeTab===tab.key?'active':''} onClick={()=>setActiveTab(tab.key)}>{tab.label}</button>)}
-      </div>
-      <button className="button secondary compact" onClick={()=>void load()} disabled={loading}><RefreshCw size={15}/>{loading?'Loading':'Refresh'}</button>
-    </div>
+    {latest&&activeTab==='stock'?<><section className="card account-filter-card"><div className="account-filter-head"><div><span className="eyebrow">Stock workbench</span><strong>{filteredCurrent.length} of {current.length} basepacks shown</strong></div><div className="account-filter-actions"><button className="account-reset-button" type="button" onClick={()=>{setStockSearch('');setAvailabilityFilter('all');setBrandFilter('all');}}><RotateCcw size={14}/>Reset</button><button className="button secondary compact" onClick={exportCurrent} disabled={!filteredCurrent.length}><Download size={15}/>Export CSV</button></div></div><div className="account-filter-grid three"><SearchField value={stockSearch} onChange={setStockSearch} placeholder="Basepack, brand or category"/><FilterField label="Availability"><select value={availabilityFilter} onChange={(e)=>setAvailabilityFilter(e.target.value as AvailabilityFilter)}><option value="all">All products</option><option value="available">Available only</option><option value="unavailable">Unavailable only</option></select></FilterField><FilterField label="Brand"><select value={brandFilter} onChange={(e)=>setBrandFilter(e.target.value)}><option value="all">All brands</option>{brands.map((brand)=><option key={brand}>{brand}</option>)}</select></FilterField></div></section><section className="card account-table-card"><div className="card-head"><div><h2>Current basepack stock</h2><p>{dateLabel(latest.stock_date)} · mapped Shajgoj IDs only.</p></div></div>{filteredCurrent.length?<div className="table-wrap"><table className="account-rich-table"><thead><tr><th>Basepack</th><th>Brand</th><th>Category</th><th>Stock</th><th>Status</th></tr></thead><tbody>{filteredCurrent.map((row)=><tr key={row.packsize}><td><strong>{row.packsize}</strong></td><td>{join(row.brands)}</td><td>{join(row.categories)}</td><td><strong>{number(row.stock_qty)}</strong></td><td><span className={`status ${row.is_available?'available':'oos'}`}>{row.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div>:<div className="empty">No products match these filters.</div>}</section></>:null}
 
-    {error && <div className="alert error pandamart-alert">{error}</div>}
-    {loading && !latest ? <section className="card"><div className="empty">Loading Shajgoj intelligence…</div></section> : null}
-    {!loading && !latest && !error ? <section className="card"><div className="empty">No Shajgoj stock history yet. Upload a Shajgoj workbook and choose the stock date to start this dashboard.</div></section> : null}
+    {latest&&activeTab==='sales'?<><section className="account-kpi-grid"><div className="account-kpi"><span>Latest MTD sold</span><strong>{number(latestSales?.sold_qty)}</strong><small>{latestSales?`through ${dateLabel(latestSales.period_end)}`:'—'}</small></div><div className="account-kpi"><span>Latest MTD sales value</span><strong>{money(latestSales?.sales_value)}</strong><small>Source cumulative value</small></div><div className="account-kpi"><span>Selling SKUs</span><strong>{number(latestSales?.selling_skus)}</strong><small>{sellingShare==null?'—':`${sellingShare.toFixed(1)}% of listed SKUs`}</small></div><div className="account-kpi"><span>Avg value / sold unit</span><strong>{money(latestAsp)}</strong><small>Sales value ÷ Sold Qty</small></div></section><section className="account-visual-grid"><div className="card account-chart-card"><div className="card-head"><div><h2>Monthly sales value</h2><p>Latest cumulative snapshot for each month.</p></div></div><HorizontalBars rows={monthlyValueRows} prefix="৳" suffix=""/></div><div className="card account-chart-card"><div className="card-head"><div><h2>Monthly sold quantity</h2><p>Volume trend using the same monthly snapshots.</p></div></div><HorizontalBars rows={monthlyQtyRows} suffix=""/></div></section><section className="card account-table-card"><div className="card-head"><div><h2>Cumulative sales snapshots</h2><p>Each row is a month-to-date state; skipped upload days do not create fake daily sales.</p></div></div>{salesSnapshots.length?<div className="table-wrap"><table className="account-rich-table"><thead><tr><th>Period</th><th>Type</th><th>SKU rows</th><th>Selling SKUs</th><th>Sold qty</th><th>Sales value</th><th>Avg value / sold unit</th></tr></thead><tbody>{salesSnapshots.map((row)=><tr key={`${row.period_start}-${row.period_end}`}><td><strong>{dateLabel(row.period_start)} → {dateLabel(row.period_end)}</strong></td><td>{row.is_complete_month?'Complete month':'MTD snapshot'}</td><td>{row.sku_rows}</td><td>{row.selling_skus}</td><td><strong>{number(row.sold_qty)}</strong></td><td>{money(row.sales_value)}</td><td>{money(divide(row.sales_value,row.sold_qty))}</td></tr>)}</tbody></table></div>:<div className="empty">No sales history yet.</div>}</section><section className="card account-table-card"><div className="card-head"><div><h2>Month-by-month sales</h2><p>Latest cumulative snapshot for each month.</p></div></div>{monthlySales.length?<div className="table-wrap"><table className="account-rich-table"><thead><tr><th>Month</th><th>Through</th><th>Status</th><th>Sold qty</th><th>Sales value</th><th>Avg value / sold unit</th></tr></thead><tbody>{monthlySales.map((row)=><tr key={row.month_start}><td><strong>{monthLabel(row.month_start)}</strong></td><td>{dateLabel(row.period_end)}</td><td>{row.is_complete_month?'Complete':'Partial'}</td><td><strong>{number(row.sold_qty)}</strong></td><td>{money(row.sales_value)}</td><td>{money(divide(row.sales_value,row.sold_qty))}</td></tr>)}</tbody></table></div>:<div className="empty">No monthly sales history yet.</div>}</section></>:null}
 
-    {latest && activeTab==='overview' && <>
-      <section className="kpi-grid pandamart-kpis">
-        <div className="kpi"><span>Current OLA</span><strong>{pct(latest.ola_pct)}</strong><small>{latest.available_basepacks}/{latest.expected_basepacks} basepacks available</small></div>
-        <div className="kpi"><span>Current stock date</span><strong className="date-kpi">{dateLabel(latest.stock_date)}</strong><small>{number(latest.total_stock)} stock units across mapped basepacks</small></div>
-        <div className="kpi"><span>Latest cumulative sold qty</span><strong>{number(latestSales?.sold_qty)}</strong><small>{latestSales ? `${dateLabel(latestSales.period_start)} → ${dateLabel(latestSales.period_end)}` : 'No sales snapshot yet'}</small></div>
-        <div className="kpi"><span>This month OLA</span><strong>{pct(currentMonth?.avg_ola_pct)}</strong><small>{currentMonth ? `${currentMonth.days_with_data} observed stock date${currentMonth.days_with_data===1?'':'s'}` : 'No monthly history yet'}</small></div>
-      </section>
+    {latest&&activeTab==='flags'?<>
+      <section className="account-flags-hero"><div><span className="account-hero-kicker">Shajgoj action center</span><h2>{flagSummary?.critical_flags??criticalFlags.length} critical issues in the current queue</h2><p>Prioritize demand-linked OOS and low days of cover first; watch and recovery signals stay visible without competing with critical work.</p></div><div className="account-flags-hero-stats"><div><span>Flagged basepacks</span><strong>{flagSummary?.flagged_basepacks??0}</strong></div><div><span>Total flags</span><strong>{flagSummary?.total_flags??flags.length}</strong></div></div></section>
+      <section className="account-kpi-grid flags"><div className="account-kpi danger"><span>Critical</span><strong>{criticalFlags.length}</strong><small>Repeated/high-sales OOS or ≤7 days cover</small></div><div className="account-kpi warning"><span>Warnings</span><strong>{warningFlags.length}</strong><small>Low cover or incomplete latest stock presence</small></div><div className="account-kpi"><span>Watch</span><strong>{watchFlags.length}</strong><small>Lower urgency inventory signals</small></div><div className="account-kpi positive"><span>Recovered</span><strong>{positiveFlags.length}</strong><small>Back in stock versus previous observation</small></div></section>
+      <section className="account-visual-grid flags-grid"><div className="card account-chart-card"><div className="card-head"><div><h2>Severity mix</h2><p>Current action queue composition.</p></div><AlertTriangle size={18}/></div><SeverityStrip critical={criticalFlags.length} warning={warningFlags.length} watch={watchFlags.length} positive={positiveFlags.length}/></div><div className="card account-chart-card"><div className="card-head"><div><h2>Most common flag types</h2><p>Which rules are driving the workload.</p></div></div><HorizontalBars rows={flagTypeRows} suffix="" onPick={(label)=>{const original=flagTypes.find((t)=>labelize(t)===label);if(original)setFlagTypeFilter(original);}}/></div></section>
+      {priorityFlags.length?<section className="card account-priority-card"><div className="card-head"><div><h2>Priority queue</h2><p>Critical products surfaced before the full flag list.</p></div></div><div className="account-priority-grid">{priorityFlags.map((r,index)=><button type="button" key={`${r.packsize}-${r.flag_type}-${index}`} onClick={()=>setFlagSearch(r.packsize)}><span className="priority-number">0{index+1}</span><div><span className="flag-pill critical">critical</span><strong>{r.packsize}</strong><small>{labelize(r.flag_type)}</small><p>{r.reason}</p></div></button>)}</div></section>:null}
+      <section className="card account-filter-card flags-filter-card"><div className="account-filter-head"><div><span className="eyebrow">Flag workbench</span><strong>{visibleFlags.length} of {flags.length} flags shown</strong></div><div className="account-filter-actions"><button className="account-reset-button" type="button" onClick={resetFlagFilters}><RotateCcw size={14}/>Reset</button><button className="button secondary compact" onClick={exportFlags} disabled={!visibleFlags.length}><Download size={15}/>Export flags</button></div></div><div className="account-filter-grid three"><SearchField value={flagSearch} onChange={setFlagSearch} placeholder="Basepack, brand or reason"/><FilterField label="Severity"><select value={severityFilter} onChange={(e)=>setSeverityFilter(e.target.value as SeverityFilter)}><option value="all">All severities</option><option value="critical">Critical</option><option value="warning">Warning</option><option value="watch">Watch</option><option value="positive">Positive</option></select></FilterField><FilterField label="Flag type"><select value={flagTypeFilter} onChange={(e)=>setFlagTypeFilter(e.target.value)}><option value="all">All flag types</option>{flagTypes.map((type)=><option key={type} value={type}>{labelize(type)}</option>)}</select></FilterField></div></section>
+      <section className="card account-table-card"><div className="card-head"><div><h2>Shajgoj flags</h2><p>Latest stock + latest cumulative sales + previous observed stock date.</p></div></div>{visibleFlags.length?<div className="table-wrap"><table className="account-rich-table flags-table"><thead><tr><th>Severity</th><th>Issue</th><th>Basepack</th><th>Brand</th><th>Key metrics</th><th>Why this is flagged</th></tr></thead><tbody>{visibleFlags.map((r,idx)=><tr key={`${r.packsize}-${r.flag_type}-${idx}`}><td><span className={`flag-pill ${r.severity}`}>{r.severity}</span></td><td><strong>{labelize(r.flag_type)}</strong><small>Priority {r.priority}</small></td><td><strong>{r.packsize}</strong></td><td>{join(r.brands)}</td><td><FlagMetricChips metrics={[{label:'Stock',value:number(r.stock_qty)},{label:'Sold',value:number(r.sold_qty)},{label:'Days cover',value:r.days_of_cover==null?'—':Number(r.days_of_cover).toFixed(1)},{label:'Sales value',value:number(r.sales_value)}]}/></td><td className="flag-reason-cell">{r.reason}</td></tr>)}</tbody></table></div>:<div className="empty">No Shajgoj flags match these filters.</div>}</section>
+      <section className="card account-rule-card"><div className="card-head"><div><h2>Shajgoj flag logic</h2><p>Rules remain account-specific and use only actual observed dates.</p></div></div><div className="pandamart-rule-grid"><div><strong>Demand-linked OOS</strong><p>OOS is escalated when the latest cumulative sales period shows demand; 25+ sold units becomes high-sales OOS.</p></div><div><strong>Days of cover</strong><p>Stock ÷ average daily sales. ≤7 days is critical; 8–14 days is warning.</p></div><div><strong>Repeated OOS</strong><p>The latest and previous actual stock observations are compared—missing calendar dates are not invented.</p></div><div><strong>Recovery</strong><p>Products returning to stock are shown as positive signals so teams can close previous issues quickly.</p></div></div></section>
+    </>:null}
 
-      <section className="card">
-        <div className="card-head"><div><h2>Latest snapshot</h2><p>Only actual uploaded stock dates are stored. Missing calendar dates are intentionally left blank.</p></div></div>
-        <div className="pandamart-overview-grid">
-          <div><span>Expected basepacks</span><strong>{latest.expected_basepacks}</strong></div>
-          <div><span>Available basepacks</span><strong>{availableStock}</strong></div>
-          <div><span>Out basepacks</span><strong>{latest.unavailable_basepacks}</strong></div>
-          <div><span>Latest sales period end</span><strong>{dateLabel(latestSales?.period_end)}</strong></div>
-          <div><span>Selling SKUs</span><strong>{latestSales?.selling_skus ?? '—'}</strong></div>
-          <div><span>Sales value</span><strong>{number(latestSales?.sales_value)}</strong></div>
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="card-head"><div><h2>How Shajgoj is measured</h2><p>The stock snapshot and cumulative sales period are intentionally treated differently.</p></div></div>
-        <div className="pandamart-rule-grid">
-          <div><strong>Stock</strong><p>The selected date is the actual date represented by Total Stock QTY. No missing date is filled forward.</p></div>
-          <div><strong>Sales</strong><p>For stock date X, the changing month column is stored as cumulative sold quantity from day 1 through X−1.</p></div>
-          <div><strong>Monthly OLA</strong><p>The monthly figure is the average of only the stock dates actually uploaded, and the number of observed days is always shown.</p></div>
-        </div>
-      </section>
-    </>}
-
-    {latest && activeTab==='stock' && <section className="card">
-      <div className="card-head"><div><h2>Current basepack stock</h2><p>{dateLabel(latest.stock_date)} · basepack availability is derived from the master Shajgoj SKU IDs.</p></div><div className="table-actions"><select value={availabilityFilter} onChange={(e)=>setAvailabilityFilter(e.target.value as any)}><option value="all">All products</option><option value="available">Available only</option><option value="unavailable">Unavailable only</option></select><button className="button secondary compact" onClick={exportCurrent} disabled={!filteredCurrent.length}><Download size={15}/>Export CSV</button></div></div>
-      <div className="table-wrap"><table><thead><tr><th>Basepack</th><th>Brand</th><th>Category</th><th>Stock</th><th>Status</th></tr></thead><tbody>{filteredCurrent.map((row)=><tr key={row.packsize}><td><strong>{row.packsize}</strong></td><td>{join(row.brands)}</td><td>{join(row.categories)}</td><td>{number(row.stock_qty)}</td><td><span className={`status ${row.is_available?'available':'oos'}`}>{row.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div>
-    </section>}
-
-    {latest && activeTab==='sales' && <>
-      <section className="card">
-        <div className="card-head"><div><h2>Cumulative sales snapshots</h2><p>Each row is a month-to-date state. Skipped upload days do not lose sales because the next file contains the larger cumulative period.</p></div></div>
-        {salesSnapshots.length ? <div className="table-wrap"><table><thead><tr><th>Period</th><th>Type</th><th>SKU rows</th><th>Selling SKUs</th><th>Sold qty</th><th>Sales value</th></tr></thead><tbody>{salesSnapshots.map((row)=><tr key={`${row.period_start}-${row.period_end}`}><td><strong>{dateLabel(row.period_start)} → {dateLabel(row.period_end)}</strong></td><td>{row.is_complete_month?'Complete month':'MTD snapshot'}</td><td>{row.sku_rows}</td><td>{row.selling_skus}</td><td>{number(row.sold_qty)}</td><td>{number(row.sales_value)}</td></tr>)}</tbody></table></div> : <div className="empty">No sales history yet.</div>}
-      </section>
-      <section className="card">
-        <div className="card-head"><div><h2>Month-by-month sales</h2><p>For each month, the latest cumulative snapshot is used. Completed month sheets are marked separately.</p></div></div>
-        {monthlySales.length ? <div className="table-wrap"><table><thead><tr><th>Month</th><th>Through</th><th>Status</th><th>Sold qty</th><th>Sales value</th></tr></thead><tbody>{monthlySales.map((row:any)=><tr key={row.month_start}><td><strong>{monthLabel(row.month_start)}</strong></td><td>{dateLabel(row.period_end)}</td><td>{row.is_complete_month?'Complete':'Partial'}</td><td>{number(row.sold_qty)}</td><td>{number(row.sales_value)}</td></tr>)}</tbody></table></div> : <div className="empty">No monthly sales history yet.</div>}
-      </section>
-    </>}
-
-    {latest && activeTab==='daily' && <section className="card">
-      <div className="card-head"><div><h2>Daily OLA observations</h2><p>Only actual uploaded stock dates appear here; gaps are preserved rather than estimated.</p></div></div>
-      {daily.length ? <div className="table-wrap"><table><thead><tr><th>Stock date</th><th>Available</th><th>Out</th><th>Expected</th><th>OLA</th><th>Total stock</th></tr></thead><tbody>{daily.map((row)=><tr key={row.stock_date}><td><strong>{dateLabel(row.stock_date)}</strong></td><td>{row.available_basepacks}</td><td>{row.unavailable_basepacks}</td><td>{row.expected_basepacks}</td><td><strong>{pct(row.ola_pct)}</strong></td><td>{number(row.total_stock)}</td></tr>)}</tbody></table></div> : <div className="empty">No daily OLA history yet.</div>}
-    </section>}
-
-    {latest && activeTab==='monthly' && <section className="card">
-      <div className="card-head"><div><h2>Monthly OLA history</h2><p>Average OLA is based only on observed stock dates, with observation count shown so sparse months are transparent.</p></div></div>
-      {monthly.length ? <div className="table-wrap"><table><thead><tr><th>Month</th><th>Observed days</th><th>Average OLA</th><th>Low</th><th>High</th><th>Observation window</th></tr></thead><tbody>{monthly.map((row)=><tr key={row.month_start}><td><strong>{monthLabel(row.month_start)}</strong></td><td>{row.days_with_data}</td><td><strong>{pct(row.avg_ola_pct)}</strong></td><td>{pct(row.min_ola_pct)}</td><td>{pct(row.max_ola_pct)}</td><td>{dateLabel(row.first_stock_date)} – {dateLabel(row.last_stock_date)}</td></tr>)}</tbody></table></div> : <div className="empty">No monthly OLA history yet.</div>}
-    </section>}
-
-    {latest && activeTab==='flags' && <>
-      <section className="kpi-grid pandamart-kpis">
-        <div className="kpi"><span>Flagged basepacks</span><strong>{flagSummary?.flagged_basepacks ?? 0}</strong><small>{flagSummary?.total_flags ?? 0} total active flags</small></div>
-        <div className="kpi"><span>Critical</span><strong>{flagSummary?.critical_flags ?? 0}</strong><small>Repeated OOS, high-sales OOS or ≤7 days cover</small></div>
-        <div className="kpi"><span>Warnings</span><strong>{flagSummary?.warning_flags ?? 0}</strong><small>Demand-linked OOS, 8–14 days cover or missing upload rows</small></div>
-        <div className="kpi"><span>Recovered</span><strong>{flagSummary?.positive_flags ?? 0}</strong><small>Back in stock versus the previous observed date</small></div>
-      </section>
-
-      <section className="card">
-        <div className="card-head"><div><h2>Shajgoj flags</h2><p>Account-specific flags using the latest stock observation, latest cumulative sales period and previous observed stock date where available.</p></div>
-          <div className="table-actions"><select value={severityFilter} onChange={(e)=>setSeverityFilter(e.target.value as any)}>
-            <option value="all">All severities</option><option value="critical">Critical</option><option value="warning">Warning</option><option value="watch">Watch</option><option value="positive">Positive</option>
-          </select><button className="button secondary compact" onClick={exportFlags} disabled={!visibleFlags.length}><Download size={15}/>Export flags</button></div>
-        </div>
-        {visibleFlags.length ? <div className="table-wrap"><table><thead><tr><th>Severity</th><th>Flag</th><th>Basepack</th><th>Brand</th><th>Stock</th><th>Sold qty</th><th>Days cover</th><th>Reason</th></tr></thead><tbody>{visibleFlags.map((row,idx)=><tr key={`${row.packsize}-${row.flag_type}-${idx}`}><td><span className={`flag-pill ${row.severity}`}>{row.severity}</span></td><td><strong>{row.flag_type.replaceAll('_',' ')}</strong></td><td>{row.packsize}</td><td>{join(row.brands)}</td><td>{number(row.stock_qty)}</td><td>{number(row.sold_qty)}</td><td>{row.days_of_cover===null?'—':Number(row.days_of_cover).toFixed(1)}</td><td>{row.reason}</td></tr>)}</tbody></table></div> : <div className="empty">No Shajgoj flags match this severity.</div>}
-      </section>
-
-      <section className="card">
-        <div className="card-head"><div><h2>Flag rules</h2><p>These rules are specific to Shajgoj; missing dates are never filled or inferred.</p></div></div>
-        <div className="pandamart-rule-grid">
-          <div><strong>Demand-linked OOS</strong><p>OOS is escalated when the latest cumulative sales period shows demand; 25+ sold units is treated as high-sales OOS.</p></div>
-          <div><strong>Days of cover</strong><p>Stock ÷ average daily sales for the latest sales period. ≤7 days is critical; 8–14 days is warning.</p></div>
-          <div><strong>History flags</strong><p>Repeated OOS and recovery compare only the latest and previous actual uploaded stock observations.</p></div>
-        </div>
-      </section>
-    </>}
-
+    {latest&&activeTab==='daily'?<section className="card account-table-card"><div className="card-head"><div><h2>Daily OLA observations</h2><p>Only actual uploaded stock dates appear.</p></div></div>{daily.length?<div className="table-wrap"><table className="account-rich-table"><thead><tr><th>Stock date</th><th>Available</th><th>Out</th><th>Expected</th><th>OLA</th><th>Total stock</th></tr></thead><tbody>{daily.map((row)=><tr key={row.stock_date}><td><strong>{dateLabel(row.stock_date)}</strong></td><td>{row.available_basepacks}</td><td>{row.unavailable_basepacks}</td><td>{row.expected_basepacks}</td><td><span className={`account-score-pill ${olaTone(row.ola_pct)}`}>{pct(row.ola_pct)}</span></td><td>{number(row.total_stock)}</td></tr>)}</tbody></table></div>:<div className="empty">No daily OLA history yet.</div>}</section>:null}
+    {latest&&activeTab==='monthly'?<section className="card account-table-card"><div className="card-head"><div><h2>Monthly OLA history</h2><p>Average OLA uses observed stock dates only.</p></div></div>{monthly.length?<div className="table-wrap"><table className="account-rich-table"><thead><tr><th>Month</th><th>Observed days</th><th>Average OLA</th><th>Low</th><th>High</th><th>Observation window</th></tr></thead><tbody>{monthly.map((row)=><tr key={row.month_start}><td><strong>{monthLabel(row.month_start)}</strong></td><td>{row.days_with_data}</td><td><span className={`account-score-pill ${olaTone(row.avg_ola_pct)}`}>{pct(row.avg_ola_pct)}</span></td><td>{pct(row.min_ola_pct)}</td><td>{pct(row.max_ola_pct)}</td><td>{dateLabel(row.first_stock_date)} – {dateLabel(row.last_stock_date)}</td></tr>)}</tbody></table></div>:<div className="empty">No monthly OLA history yet.</div>}</section>:null}
   </div>;
 }

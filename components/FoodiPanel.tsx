@@ -1,159 +1,57 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, RotateCcw, ShoppingBag, TrendingUp } from 'lucide-react';
 import { exportCsv } from '@/lib/csv-export';
+import { AccountRing, FilterField, HorizontalBars, MiniTrend, SearchField, olaTone } from '@/components/AccountVisuals';
 
-type BasepackRow = {
-  stock_date: string;
-  packsize: string;
-  brands: string[] | null;
-  categories: string[] | null;
-  stock_qty: number;
-  is_available: boolean;
-  sold_qty_30d: number;
-};
+type BasepackRow={stock_date:string;packsize:string;brands:string[]|null;categories:string[]|null;stock_qty:number;is_available:boolean;sold_qty_30d:number};
+type DailyRow={stock_date:string;expected_basepacks:number;available_basepacks:number;unavailable_basepacks:number;ola_pct:number|null;total_stock:number};
+type MonthlyRow={month_start:string;days_with_data:number;avg_ola_pct:number|null;min_ola_pct:number|null;max_ola_pct:number|null;first_stock_date:string;last_stock_date:string};
+type SalesRow={stock_date:string;period_start:string;period_end:string;sku_rows:number;selling_skus:number;sold_qty:number};
+type TabKey='overview'|'stock'|'sales'|'daily'|'monthly';
+type AvailabilityFilter='all'|'available'|'unavailable';
+const TABS:Array<{key:TabKey;label:string}>=[{key:'overview',label:'Overview'},{key:'stock',label:'Current Stock'},{key:'sales',label:'30-Day Sales'},{key:'daily',label:'Daily OLA'},{key:'monthly',label:'Monthly OLA'}];
+const pct=(v:number|null|undefined)=>v==null?'—':`${Number(v).toFixed(2)}%`;
+const number=(v:number|null|undefined)=>v==null?'—':Number(v).toLocaleString(undefined,{maximumFractionDigits:2});
+const dateLabel=(v:string|null|undefined)=>!v?'—':new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(`${v}T00:00:00`));
+const shortDate=(v:string)=>new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short'}).format(new Date(`${v}T00:00:00`));
+const monthLabel=(v:string)=>new Intl.DateTimeFormat('en-GB',{month:'short',year:'numeric'}).format(new Date(`${v}T00:00:00`));
+const join=(v:string[]|null)=>v?.length?v.join(' · '):'—';
+const divide=(a:number|null|undefined,b:number|null|undefined,multiplier=1)=>{const x=Number(a??0),y=Number(b??0);return y?(x/y)*multiplier:null;};
+const deltaPct=(current:number|null|undefined,previous:number|null|undefined)=>{const c=Number(current??0),p=Number(previous??0);return p?((c-p)/p)*100:null;};
+const signedPct=(v:number|null|undefined)=>v==null?'—':`${Number(v)>=0?'+':''}${Number(v).toFixed(1)}%`;
 
-type DailyRow = {
-  stock_date: string;
-  expected_basepacks: number;
-  available_basepacks: number;
-  unavailable_basepacks: number;
-  ola_pct: number | null;
-  total_stock: number;
-};
-
-type MonthlyRow = {
-  month_start: string;
-  days_with_data: number;
-  avg_ola_pct: number | null;
-  min_ola_pct: number | null;
-  max_ola_pct: number | null;
-  first_stock_date: string;
-  last_stock_date: string;
-};
-
-type SalesRow = {
-  stock_date: string;
-  period_start: string;
-  period_end: string;
-  sku_rows: number;
-  selling_skus: number;
-  sold_qty: number;
-};
-
-type TabKey = 'overview' | 'stock' | 'sales' | 'daily' | 'monthly';
-const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'stock', label: 'Current Stock' },
-  { key: 'sales', label: '30-Day Sales' },
-  { key: 'daily', label: 'Daily OLA' },
-  { key: 'monthly', label: 'Monthly OLA' },
-];
-
-function pct(value: number | null | undefined) {
-  return value === null || value === undefined ? '—' : `${Number(value).toFixed(2)}%`;
-}
-function number(value: number | null | undefined) {
-  return value === null || value === undefined ? '—' : Number(value).toLocaleString();
-}
-function dateLabel(value: string | null | undefined) {
-  if (!value) return '—';
-  return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
-}
-function monthLabel(value: string) {
-  return new Intl.DateTimeFormat('en-GB', { month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`));
-}
-function join(values: string[] | null) {
-  return values?.length ? values.join(' · ') : '—';
-}
-
-export default function FoodiPanel() {
-  const [current, setCurrent] = useState<BasepackRow[]>([]);
-  const [daily, setDaily] = useState<DailyRow[]>([]);
-  const [monthly, setMonthly] = useState<MonthlyRow[]>([]);
-  const [sales30d, setSales30d] = useState<SalesRow[]>([]);
-  const [activeTab, setActiveTab] = useState<TabKey>('overview');
-  const [availabilityFilter, setAvailabilityFilter] = useState<'all'|'available'|'unavailable'>('all');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  async function load() {
-    setLoading(true); setError('');
-    try {
-      const res = await fetch('/api/foodi', { cache: 'no-store' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Failed to load Foodi intelligence.');
-      setCurrent(json.current || []);
-      setDaily(json.daily || []);
-      setMonthly(json.monthly || []);
-      setSales30d(json.sales30d || []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load Foodi intelligence.');
-    } finally { setLoading(false); }
-  }
-
-  useEffect(() => { void load(); }, []);
-
-  const latest = daily[0] ?? null;
-  const currentMonth = monthly[0] ?? null;
-  const latestSales = sales30d[0] ?? null;
-  const filteredCurrent = useMemo(() => current.filter((r)=>availabilityFilter==='all'||(availabilityFilter==='available'?r.is_available:!r.is_available)), [current,availabilityFilter]);
-  const topSelling = useMemo(() => [...current].sort((a, b) => Number(b.sold_qty_30d) - Number(a.sold_qty_30d)).slice(0, 10), [current]);
-
-  function exportCurrent() { exportCsv(`foodi-${availabilityFilter}-products`, filteredCurrent.map((r)=>({ Date:r.stock_date, Basepack:r.packsize, Brand:join(r.brands), Category:join(r.categories), Stock:r.stock_qty, Sold_30D:r.sold_qty_30d, Status:r.is_available?'Available':'Unavailable' }))); }
-
-  return <div className="pandamart-dashboard">
-    <div className="pandamart-tabbar">
-      <div className="pandamart-tabs" role="tablist" aria-label="Foodi sections">
-        {TABS.map((tab) => <button key={tab.key} type="button" role="tab" aria-selected={activeTab===tab.key} className={activeTab===tab.key?'active':''} onClick={()=>setActiveTab(tab.key)}>{tab.label}</button>)}
-      </div>
-      <button className="button secondary compact" onClick={()=>void load()} disabled={loading}><RefreshCw size={15}/>{loading?'Loading':'Refresh'}</button>
-    </div>
-
-    {error && <div className="alert error pandamart-alert">{error}</div>}
-    {loading && !latest ? <section className="card"><div className="empty">Loading Foodi intelligence…</div></section> : null}
-    {!loading && !latest && !error ? <section className="card"><div className="empty">No Foodi history yet. Upload a Foodi workbook and choose the stock date to start this dashboard.</div></section> : null}
-
-    {latest && activeTab==='overview' && <>
-      <section className="kpi-grid pandamart-kpis">
-        <div className="kpi"><span>Current OLA</span><strong>{pct(latest.ola_pct)}</strong><small>{latest.available_basepacks}/{latest.expected_basepacks} basepacks available</small></div>
-        <div className="kpi"><span>Current stock date</span><strong className="date-kpi">{dateLabel(latest.stock_date)}</strong><small>{number(latest.total_stock)} stock units across mapped Foodi IDs</small></div>
-        <div className="kpi"><span>Rolling 30-day sales</span><strong>{number(latestSales?.sold_qty)}</strong><small>{latestSales ? `${dateLabel(latestSales.period_start)} → ${dateLabel(latestSales.period_end)}` : 'No sales snapshot'}</small></div>
-        <div className="kpi"><span>Current month avg OLA</span><strong>{pct(currentMonth?.avg_ola_pct)}</strong><small>{currentMonth ? `${currentMonth.days_with_data} observed day${currentMonth.days_with_data===1?'':'s'}` : 'No month history'}</small></div>
-      </section>
-      <section className="card">
-        <div className="card-head"><div><h2>Foodi data rule</h2><p>The Foodi workbook is treated as a sparse observation, not a continuous calendar feed.</p></div></div>
-        <div className="pandamart-rule-grid">
-          <div><strong>Stock X</strong><p>Total Stock is stored against the stock date you select. Missing dates are not filled forward.</p></div>
-          <div><strong>Sales through X−1</strong><p>30 Day Sale Qty is stored as a rolling 30-day window ending one day before the stock date.</p></div>
-          <div><strong>Master scope</strong><p>Only active Foodi mappings in the UBL master count toward expected basepacks and OLA.</p></div>
-        </div>
-      </section>
-      {topSelling.length>0 && <section className="card">
-        <div className="card-head"><div><h2>Top basepacks by 30-day sales</h2><p>Latest Foodi snapshot, rolled up from mapped Foodi SKUs to UBL basepacks.</p></div></div>
-        <div className="table-wrap"><table><thead><tr><th>Basepack</th><th>Brand</th><th>Stock</th><th>30-day sold</th><th>Status</th></tr></thead><tbody>{topSelling.map((row)=><tr key={row.packsize}><td><strong>{row.packsize}</strong></td><td>{join(row.brands)}</td><td>{number(row.stock_qty)}</td><td><strong>{number(row.sold_qty_30d)}</strong></td><td><span className={`status ${row.is_available?'available':'oos'}`}>{row.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div>
-      </section>}
-    </>}
-
-    {latest && activeTab==='stock' && <section className="card">
-      <div className="card-head"><div><h2>Current basepack stock</h2><p>{dateLabel(latest.stock_date)} · basepack availability is derived from active master Foodi SKU IDs.</p></div><div className="table-actions"><select value={availabilityFilter} onChange={(e)=>setAvailabilityFilter(e.target.value as any)}><option value="all">All products</option><option value="available">Available only</option><option value="unavailable">Unavailable only</option></select><button className="button secondary compact" onClick={exportCurrent} disabled={!filteredCurrent.length}><Download size={15}/>Export CSV</button></div></div>
-      <div className="table-wrap"><table><thead><tr><th>Basepack</th><th>Brand</th><th>Category</th><th>Stock</th><th>30-day sold</th><th>Status</th></tr></thead><tbody>{filteredCurrent.map((row)=><tr key={row.packsize}><td><strong>{row.packsize}</strong></td><td>{join(row.brands)}</td><td>{join(row.categories)}</td><td>{number(row.stock_qty)}</td><td>{number(row.sold_qty_30d)}</td><td><span className={`status ${row.is_available?'available':'oos'}`}>{row.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div>
-    </section>}
-
-    {latest && activeTab==='sales' && <section className="card">
-      <div className="card-head"><div><h2>Rolling 30-day sales snapshots</h2><p>Every uploaded stock date keeps its own rolling 30-day sales window. These are overlapping snapshots, not additive daily sales.</p></div></div>
-      {sales30d.length ? <div className="table-wrap"><table><thead><tr><th>Stock date</th><th>Sales window</th><th>SKU rows</th><th>Selling SKUs</th><th>Sold qty</th></tr></thead><tbody>{sales30d.map((row)=><tr key={row.stock_date}><td><strong>{dateLabel(row.stock_date)}</strong></td><td>{dateLabel(row.period_start)} → {dateLabel(row.period_end)}</td><td>{row.sku_rows}</td><td>{row.selling_skus}</td><td><strong>{number(row.sold_qty)}</strong></td></tr>)}</tbody></table></div> : <div className="empty">No Foodi sales history yet.</div>}
-    </section>}
-
-    {latest && activeTab==='daily' && <section className="card">
-      <div className="card-head"><div><h2>Daily OLA observations</h2><p>Only actual uploaded Foodi stock dates appear here.</p></div></div>
-      {daily.length ? <div className="table-wrap"><table><thead><tr><th>Stock date</th><th>Available</th><th>Out</th><th>Expected</th><th>OLA</th><th>Total stock</th></tr></thead><tbody>{daily.map((row)=><tr key={row.stock_date}><td><strong>{dateLabel(row.stock_date)}</strong></td><td>{row.available_basepacks}</td><td>{row.unavailable_basepacks}</td><td>{row.expected_basepacks}</td><td><strong>{pct(row.ola_pct)}</strong></td><td>{number(row.total_stock)}</td></tr>)}</tbody></table></div> : <div className="empty">No daily OLA history yet.</div>}
-    </section>}
-
-    {latest && activeTab==='monthly' && <section className="card">
-      <div className="card-head"><div><h2>Monthly OLA history</h2><p>Average OLA uses only observed Foodi dates, with the observation count shown explicitly.</p></div></div>
-      {monthly.length ? <div className="table-wrap"><table><thead><tr><th>Month</th><th>Observed days</th><th>Average OLA</th><th>Low</th><th>High</th><th>Observation window</th></tr></thead><tbody>{monthly.map((row)=><tr key={row.month_start}><td><strong>{monthLabel(row.month_start)}</strong></td><td>{row.days_with_data}</td><td><strong>{pct(row.avg_ola_pct)}</strong></td><td>{pct(row.min_ola_pct)}</td><td>{pct(row.max_ola_pct)}</td><td>{dateLabel(row.first_stock_date)} – {dateLabel(row.last_stock_date)}</td></tr>)}</tbody></table></div> : <div className="empty">No monthly OLA history yet.</div>}
-    </section>}
-  </div>;
+export default function FoodiPanel(){
+ const[current,setCurrent]=useState<BasepackRow[]>([]),[daily,setDaily]=useState<DailyRow[]>([]),[monthly,setMonthly]=useState<MonthlyRow[]>([]),[sales30d,setSales30d]=useState<SalesRow[]>([]);
+ const[activeTab,setActiveTab]=useState<TabKey>('overview'),[availabilityFilter,setAvailabilityFilter]=useState<AvailabilityFilter>('all'),[stockSearch,setStockSearch]=useState(''),[brandFilter,setBrandFilter]=useState('all'),[loading,setLoading]=useState(true),[error,setError]=useState('');
+ async function load(){setLoading(true);setError('');try{const res=await fetch('/api/foodi',{cache:'no-store'});const json=await res.json();if(!res.ok)throw new Error(json.error||'Failed to load Foodi intelligence.');setCurrent(json.current||[]);setDaily(json.daily||[]);setMonthly(json.monthly||[]);setSales30d(json.sales30d||[]);}catch(e){setError(e instanceof Error?e.message:'Failed to load Foodi intelligence.');}finally{setLoading(false)}}
+ useEffect(()=>{void load()},[]);
+ const latest=daily[0]??null,currentMonth=monthly[0]??null,latestSales=sales30d[0]??null,previousSales=sales30d[1]??null;
+ const sellingShare=divide(latestSales?.selling_skus,latestSales?.sku_rows,100),avgPerSellingSku=divide(latestSales?.sold_qty,latestSales?.selling_skus),windowDelta=deltaPct(latestSales?.sold_qty,previousSales?.sold_qty);
+ const brands=useMemo(()=>Array.from(new Set(current.flatMap((r)=>r.brands??[]))).filter(Boolean).sort(),[current]);
+ const filteredCurrent=useMemo(()=>{const q=stockSearch.trim().toLowerCase();return current.filter((r)=>{const availabilityOk=availabilityFilter==='all'||(availabilityFilter==='available'?r.is_available:!r.is_available);const brandOk=brandFilter==='all'||(r.brands??[]).includes(brandFilter);const searchOk=!q||`${r.packsize} ${join(r.brands)} ${join(r.categories)}`.toLowerCase().includes(q);return availabilityOk&&brandOk&&searchOk;});},[current,availabilityFilter,brandFilter,stockSearch]);
+ const topSelling=useMemo(()=>[...current].sort((a,b)=>Number(b.sold_qty_30d)-Number(a.sold_qty_30d)).slice(0,8),[current]);
+ const outWithDemand=useMemo(()=>current.filter((r)=>!r.is_available&&Number(r.sold_qty_30d)>0).sort((a,b)=>Number(b.sold_qty_30d)-Number(a.sold_qty_30d)).slice(0,6),[current]);
+ const recentDaily=useMemo(()=>daily.slice(0,14).reverse(),[daily]);
+ const rollingRows=useMemo(()=>sales30d.slice(0,8).reverse().map((r)=>({label:shortDate(r.stock_date),value:Number(r.sold_qty||0),note:`${dateLabel(r.period_start)} → ${dateLabel(r.period_end)}`,tone:'good' as const})),[sales30d]);
+ const exportCurrent=()=>exportCsv(`foodi-${availabilityFilter}-products`,filteredCurrent.map((r)=>({Date:r.stock_date,Basepack:r.packsize,Brand:join(r.brands),Category:join(r.categories),Stock:r.stock_qty,Sold_30D:r.sold_qty_30d,Status:r.is_available?'Available':'Unavailable'})));
+ return <div className="account-intelligence-page pandamart-dashboard">
+  <section className="account-command-card"><div className="account-command-top"><div className="pandamart-tabs account-tabs-heavy" role="tablist">{TABS.map((tab)=><button key={tab.key} type="button" role="tab" aria-selected={activeTab===tab.key} className={activeTab===tab.key?'active':''} onClick={()=>setActiveTab(tab.key)}>{tab.label}</button>)}</div><button className="button secondary compact" onClick={()=>void load()} disabled={loading}><RefreshCw size={15}/>{loading?'Loading':'Refresh'}</button></div><div className="account-command-note"><span>Foodi sales are rolling 30-day snapshots ending X−1, not calendar-month sales.</span></div></section>
+  {error&&<div className="alert error pandamart-alert">{error}</div>}
+  {loading&&!latest?<section className="card"><div className="empty">Loading Foodi intelligence…</div></section>:null}
+  {!loading&&!latest&&!error?<section className="card"><div className="empty">No Foodi history yet. Upload a Foodi workbook and choose the stock date to start this dashboard.</div></section>:null}
+  {latest&&activeTab==='overview'?<>
+   <section className="account-hero account-hero-foodi"><div className="account-hero-copy"><span className="account-hero-kicker">Foodi availability & demand</span><h2>{pct(latest.ola_pct)} current OLA</h2><p>{latest.available_basepacks} of {latest.expected_basepacks} mapped basepacks are available. The latest rolling window records {number(latestSales?.sold_qty)} sold units.</p><div className="account-hero-meta"><span>Stock date <strong>{dateLabel(latest.stock_date)}</strong></span><span>Rolling sales through <strong>{dateLabel(latestSales?.period_end)}</strong></span><span>Demand-linked OOS <strong>{outWithDemand.length}</strong></span></div></div><AccountRing value={latest.ola_pct} label="Current OLA" note={`${latest.unavailable_basepacks} basepacks currently out`}/></section>
+   <section className="account-kpi-grid"><div className="account-kpi"><span>Current OLA</span><strong>{pct(latest.ola_pct)}</strong><small>{latest.available_basepacks}/{latest.expected_basepacks} available</small></div><div className="account-kpi"><span>Current stock</span><strong>{number(latest.total_stock)}</strong><small>Mapped units as of {dateLabel(latest.stock_date)}</small></div><div className="account-kpi"><span>Rolling 30-day sold</span><strong>{number(latestSales?.sold_qty)}</strong><small>{latestSales?`${dateLabel(latestSales.period_start)} → ${dateLabel(latestSales.period_end)}`:'No sales snapshot'}</small></div><div className="account-kpi"><span>Selling SKUs</span><strong>{number(latestSales?.selling_skus)}</strong><small>{sellingShare==null?'—':`${sellingShare.toFixed(1)}% of ${number(latestSales?.sku_rows)} SKU rows`}</small></div></section>
+   <section className="account-number-strip"><div><span>Available basepacks</span><strong>{number(latest.available_basepacks)}</strong><small>of {number(latest.expected_basepacks)} mapped</small></div><div><span>Unavailable basepacks</span><strong>{number(latest.unavailable_basepacks)}</strong><small>Current OOS count</small></div><div><span>Avg sold / selling SKU</span><strong>{number(avgPerSellingSku)}</strong><small>Latest rolling 30-day window</small></div><div className={outWithDemand.length?'danger':'positive'}><span>Demand-linked OOS</span><strong>{outWithDemand.length}</strong><small>OOS products with 30-day demand</small></div></section>
+   <section className="account-visual-grid"><div className="card account-chart-card"><div className="card-head"><div><h2>Recent OLA trend</h2><p>Actual upload dates only, with percentages visible on the chart.</p></div></div><MiniTrend rows={recentDaily.map((r)=>({label:shortDate(r.stock_date),value:r.ola_pct}))}/></div><div className="card account-chart-card"><div className="card-head"><div><h2>Top 30-day sellers</h2><p>Demand leaders in the latest Foodi snapshot.</p></div><TrendingUp size={18}/></div><HorizontalBars rows={topSelling.map((r)=>({label:r.packsize,value:Number(r.sold_qty_30d),note:`Stock ${number(r.stock_qty)}`,tone:r.is_available?'good':'critical'}))} suffix="" onPick={(label)=>{setStockSearch(label);setActiveTab('stock');}}/></div></section>
+   <section className="card account-chart-card foodi-window-card"><div className="card-head"><div><h2>Rolling 30-day volume history</h2><p>Each point is a complete overlapping 30-day window. The change is between reported windows, not month-on-month growth.</p></div></div><div className="account-window-summary"><div><span>Latest window</span><strong>{number(latestSales?.sold_qty)}</strong><small>{dateLabel(latestSales?.period_start)} → {dateLabel(latestSales?.period_end)}</small></div><div><span>Previous reported window</span><strong>{number(previousSales?.sold_qty)}</strong><small>{previousSales?`${dateLabel(previousSales.period_start)} → ${dateLabel(previousSales.period_end)}`:'—'}</small></div><div><span>Window-to-window change</span><strong>{signedPct(windowDelta)}</strong><small>Overlapping windows; directional only</small></div><div><span>Month avg OLA</span><strong>{pct(currentMonth?.avg_ola_pct)}</strong><small>{currentMonth?`${currentMonth.days_with_data} observed dates`:'—'}</small></div></div><HorizontalBars rows={rollingRows} suffix=""/></section>
+   {outWithDemand.length?<section className="card account-attention-card"><div className="card-head"><div><h2>Operational watchlist</h2><p>Unavailable basepacks that still show rolling 30-day demand. This is a watchlist, not a formal Foodi flag engine.</p></div></div><div className="account-attention-grid">{outWithDemand.map((r)=><button key={r.packsize} type="button" onClick={()=>{setStockSearch(r.packsize);setAvailabilityFilter('unavailable');setActiveTab('stock');}}><span><ShoppingBag size={14}/> Demand-linked OOS</span><strong>{r.packsize}</strong><p>{number(r.sold_qty_30d)} units sold in the current 30-day window · stock {number(r.stock_qty)}</p></button>)}</div></section>:null}
+  </>:null}
+  {latest&&activeTab==='stock'?<><section className="card account-filter-card"><div className="account-filter-head"><div><span className="eyebrow">Stock workbench</span><strong>{filteredCurrent.length} of {current.length} basepacks shown</strong></div><div className="account-filter-actions"><button className="account-reset-button" type="button" onClick={()=>{setStockSearch('');setAvailabilityFilter('all');setBrandFilter('all');}}><RotateCcw size={14}/>Reset</button><button className="button secondary compact" onClick={exportCurrent} disabled={!filteredCurrent.length}><Download size={15}/>Export CSV</button></div></div><div className="account-filter-grid three"><SearchField value={stockSearch} onChange={setStockSearch} placeholder="Basepack, brand or category"/><FilterField label="Availability"><select value={availabilityFilter} onChange={e=>setAvailabilityFilter(e.target.value as AvailabilityFilter)}><option value="all">All products</option><option value="available">Available only</option><option value="unavailable">Unavailable only</option></select></FilterField><FilterField label="Brand"><select value={brandFilter} onChange={e=>setBrandFilter(e.target.value)}><option value="all">All brands</option>{brands.map((brand)=><option key={brand}>{brand}</option>)}</select></FilterField></div></section><section className="card account-table-card"><div className="card-head"><div><h2>Current basepack stock</h2><p>{dateLabel(latest.stock_date)} · active master Foodi mappings only.</p></div></div>{filteredCurrent.length?<div className="table-wrap"><table className="account-rich-table"><thead><tr><th>Basepack</th><th>Brand</th><th>Category</th><th>Stock</th><th>30-day sold</th><th>Status</th></tr></thead><tbody>{filteredCurrent.map((row)=><tr key={row.packsize}><td><strong>{row.packsize}</strong></td><td>{join(row.brands)}</td><td>{join(row.categories)}</td><td><strong>{number(row.stock_qty)}</strong></td><td>{number(row.sold_qty_30d)}</td><td><span className={`status ${row.is_available?'available':'oos'}`}>{row.is_available?'Available':'Out'}</span></td></tr>)}</tbody></table></div>:<div className="empty">No products match these filters.</div>}</section></>:null}
+  {latest&&activeTab==='sales'?<><section className="account-kpi-grid"><div className="account-kpi"><span>Latest 30-day sold</span><strong>{number(latestSales?.sold_qty)}</strong><small>{dateLabel(latestSales?.period_start)} → {dateLabel(latestSales?.period_end)}</small></div><div className="account-kpi"><span>Selling SKUs</span><strong>{number(latestSales?.selling_skus)}</strong><small>{sellingShare==null?'—':`${sellingShare.toFixed(1)}% of SKU rows`}</small></div><div className="account-kpi"><span>Avg sold / selling SKU</span><strong>{number(avgPerSellingSku)}</strong><small>Latest rolling window</small></div><div className="account-kpi"><span>Window change</span><strong>{signedPct(windowDelta)}</strong><small>vs previous reported overlapping window</small></div></section><section className="card account-chart-card foodi-window-card"><div className="card-head"><div><h2>Rolling 30-day sold quantity</h2><p>Every bar is one reported 30-day window; these windows overlap and must not be summed.</p></div></div><HorizontalBars rows={rollingRows} suffix=""/></section><section className="card account-table-card"><div className="card-head"><div><h2>Rolling 30-day sales snapshots</h2><p>Overlapping windows; do not add them together as daily sales.</p></div></div>{sales30d.length?<div className="table-wrap"><table className="account-rich-table"><thead><tr><th>Stock date</th><th>Sales window</th><th>SKU rows</th><th>Selling SKUs</th><th>Selling SKU share</th><th>Sold qty</th><th>Avg sold / selling SKU</th></tr></thead><tbody>{sales30d.map((row)=><tr key={row.stock_date}><td><strong>{dateLabel(row.stock_date)}</strong></td><td>{dateLabel(row.period_start)} → {dateLabel(row.period_end)}</td><td>{row.sku_rows}</td><td>{row.selling_skus}</td><td>{pct(divide(row.selling_skus,row.sku_rows,100))}</td><td><strong>{number(row.sold_qty)}</strong></td><td>{number(divide(row.sold_qty,row.selling_skus))}</td></tr>)}</tbody></table></div>:<div className="empty">No Foodi sales history yet.</div>}</section></>:null}
+  {latest&&activeTab==='daily'?<section className="card account-table-card"><div className="card-head"><div><h2>Daily OLA observations</h2><p>Only actual uploaded stock dates appear here.</p></div></div>{daily.length?<div className="table-wrap"><table className="account-rich-table"><thead><tr><th>Stock date</th><th>Available</th><th>Out</th><th>Expected</th><th>OLA</th><th>Total stock</th></tr></thead><tbody>{daily.map((row)=><tr key={row.stock_date}><td><strong>{dateLabel(row.stock_date)}</strong></td><td>{row.available_basepacks}</td><td>{row.unavailable_basepacks}</td><td>{row.expected_basepacks}</td><td><span className={`account-score-pill ${olaTone(row.ola_pct)}`}>{pct(row.ola_pct)}</span></td><td>{number(row.total_stock)}</td></tr>)}</tbody></table></div>:<div className="empty">No daily history yet.</div>}</section>:null}
+  {latest&&activeTab==='monthly'?<section className="card account-table-card"><div className="card-head"><div><h2>Monthly OLA history</h2><p>Average OLA is based on observed dates only.</p></div></div>{monthly.length?<div className="table-wrap"><table className="account-rich-table"><thead><tr><th>Month</th><th>Observed days</th><th>Average OLA</th><th>Low</th><th>High</th><th>Window</th></tr></thead><tbody>{monthly.map((row)=><tr key={row.month_start}><td><strong>{monthLabel(row.month_start)}</strong></td><td>{row.days_with_data}</td><td><span className={`account-score-pill ${olaTone(row.avg_ola_pct)}`}>{pct(row.avg_ola_pct)}</span></td><td>{pct(row.min_ola_pct)}</td><td>{pct(row.max_ola_pct)}</td><td>{dateLabel(row.first_stock_date)} – {dateLabel(row.last_stock_date)}</td></tr>)}</tbody></table></div>:<div className="empty">No monthly history yet.</div>}</section>:null}
+ </div>;
 }
