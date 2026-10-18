@@ -17,6 +17,23 @@ type MasterPreview = {
 };
 
 
+type CppInspection = {
+  profileName: string;
+  profileNote: string;
+  sheets: Array<{
+    name: string;
+    headerRow: number;
+    columns: string[];
+    suggestedSkuColumn: string;
+    suggestedPriceColumn: string;
+    suggestedProductNameColumn: string;
+    suggestedBrandColumn: string;
+    suggestedCategoryColumn: string;
+    suggestedMrpColumn: string;
+    sampleRows: Record<string, string | number | boolean | null>[];
+  }>;
+};
+
 type CppPreview = {
   valid: boolean;
   account: { id: string; code: string; name: string };
@@ -134,10 +151,23 @@ export default function UploadCenter() {
 function CppUpload() {
   const supported = [
     { code: 'daraz', name: 'Daraz' },
+    { code: 'pandamart', name: 'Pandamart' },
     { code: 'shajgoj', name: 'Shajgoj' },
+    { code: 'othoba', name: 'Othoba' },
+    { code: 'arogga', name: 'Arogga' },
+    { code: 'shwapno', name: 'Shwapno' },
   ];
   const [accountCode, setAccountCode] = useState('daraz');
   const [file, setFile] = useState<File | null>(null);
+  const [inspection, setInspection] = useState<CppInspection | null>(null);
+  const [sheetName, setSheetName] = useState('');
+  const [headerRow, setHeaderRow] = useState(1);
+  const [skuColumn, setSkuColumn] = useState('');
+  const [priceColumn, setPriceColumn] = useState('');
+  const [productNameColumn, setProductNameColumn] = useState('');
+  const [brandColumn, setBrandColumn] = useState('');
+  const [categoryColumn, setCategoryColumn] = useState('');
+  const [mrpColumn, setMrpColumn] = useState('');
   const [preview, setPreview] = useState<CppPreview | null>(null);
   const [effectiveFrom, setEffectiveFrom] = useState('');
   const [effectiveTo, setEffectiveTo] = useState('');
@@ -145,6 +175,54 @@ function CppUpload() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  const selectedAccount = supported.find((a) => a.code === accountCode) || supported[0];
+  const fixedProfile = accountCode === 'daraz' || accountCode === 'shajgoj' || accountCode === 'arogga';
+  const selectedSheet = inspection?.sheets.find((s) => s.name === sheetName) || inspection?.sheets[0] || null;
+
+  function applySheet(nextName: string, source: CppInspection | null = inspection) {
+    const sheet = source?.sheets.find((s) => s.name === nextName) || source?.sheets[0];
+    if (!sheet) {
+      setSheetName(''); setHeaderRow(1); setSkuColumn(''); setPriceColumn('');
+      setProductNameColumn(''); setBrandColumn(''); setCategoryColumn(''); setMrpColumn('');
+      return;
+    }
+    setSheetName(sheet.name);
+    setHeaderRow(sheet.headerRow);
+    setSkuColumn(sheet.suggestedSkuColumn || '');
+    setPriceColumn(sheet.suggestedPriceColumn || '');
+    setProductNameColumn(sheet.suggestedProductNameColumn || '');
+    setBrandColumn(sheet.suggestedBrandColumn || '');
+    setCategoryColumn(sheet.suggestedCategoryColumn || '');
+    setMrpColumn(sheet.suggestedMrpColumn || '');
+    setPreview(null);
+  }
+
+  async function inspectGenericFile(nextFile: File) {
+    setBusy(true); setError(''); setSuccess(''); setInspection(null); setPreview(null);
+    try {
+      const fd = new FormData();
+      fd.append('file', nextFile);
+      fd.append('account', accountCode);
+      fd.append('inspect', 'true');
+      const res = await fetch('/api/cpp/reference', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Could not inspect CPP workbook.');
+      setInspection(json);
+      applySheet(json.sheets?.[0]?.name || '', json);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not inspect CPP workbook.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function chooseFile(nextFile: File | null) {
+    setFile(nextFile);
+    setPreview(null); setSuccess(''); setError(''); setEffectiveFrom(''); setEffectiveTo('');
+    setInspection(null); applySheet('', null);
+    if (nextFile && !fixedProfile) await inspectGenericFile(nextFile);
+  }
 
   async function submit(mode: 'preview' | 'commit') {
     if (!file) return;
@@ -154,6 +232,16 @@ function CppUpload() {
       fd.append('file', file);
       fd.append('account', accountCode);
       fd.append('tolerancePct', tolerancePct || '1');
+      if (!fixedProfile) {
+        fd.append('sheetName', sheetName);
+        fd.append('headerRow', String(headerRow));
+        fd.append('skuColumn', skuColumn);
+        fd.append('priceColumn', priceColumn);
+        fd.append('productNameColumn', productNameColumn);
+        fd.append('brandColumn', brandColumn);
+        fd.append('categoryColumn', categoryColumn);
+        fd.append('mrpColumn', mrpColumn);
+      }
       if (effectiveFrom) fd.append('effectiveFrom', effectiveFrom);
       if (effectiveTo) fd.append('effectiveTo', effectiveTo);
       if (mode === 'preview') fd.append('preview', 'true');
@@ -178,13 +266,21 @@ function CppUpload() {
 
   function resetForAccount(code: string) {
     setAccountCode(code);
-    setFile(null);
-    setPreview(null);
-    setEffectiveFrom('');
-    setEffectiveTo('');
-    setError('');
-    setSuccess('');
+    setFile(null); setInspection(null); setPreview(null);
+    setSheetName(''); setHeaderRow(1); setSkuColumn(''); setPriceColumn('');
+    setProductNameColumn(''); setBrandColumn(''); setCategoryColumn(''); setMrpColumn('');
+    setEffectiveFrom(''); setEffectiveTo(''); setError(''); setSuccess('');
   }
+
+  const ruleTitle = accountCode === 'daraz' ? 'Daraz rule' : accountCode === 'shajgoj' ? 'Shajgoj rule' : accountCode === 'arogga' ? 'Arogga rule' : `${selectedAccount.name} direct-SKU rule`;
+  const ruleText = accountCode === 'daraz'
+    ? 'Expected CPP = MRP − October Backmargin. Daraz SKU is read directly from the workbook.'
+    : accountCode === 'shajgoj'
+      ? 'Expected CPP = Selling Price. Shajgoj SKU is resolved from the current master using Packsize/product matching.'
+      : accountCode === 'arogga'
+        ? 'Expected CPP = Selling Price on All sku CPP sku. Arogga code is the direct marketplace SKU. Missing and duplicate codes are excluded; offer/enlistment sheets are not imported.'
+        : 'Choose the marketplace SKU/Product ID column and the approved CPP price column. The SKU is used directly for scraping; no fuzzy SKU matching is performed.';
+  const genericReady = fixedProfile || Boolean(inspection && sheetName && skuColumn && priceColumn);
 
   return <section className="card upload-card">
     <div className="card-head"><div><h2>CPP reference price upload</h2><p>Upload the monthly approved price file. A new commit becomes the live CPP set for that account; the previous set remains in history.</p></div></div>
@@ -196,10 +292,29 @@ function CppUpload() {
       <label><span>Allowed tolerance above CPP (%)</span><input type="number" min="0" max="100" step="0.1" value={tolerancePct} onChange={(e)=>{setTolerancePct(e.target.value);setPreview(null);}}/></label>
     </div>
 
-    <div className="alert success"><DollarSign size={17}/><div><strong>{accountCode === 'daraz' ? 'Daraz rule' : 'Shajgoj rule'}</strong><div>{accountCode === 'daraz' ? 'Expected CPP = MRP − October Backmargin. Daraz SKU is read directly from the workbook.' : 'Expected CPP = Selling Price. Shajgoj SKU is resolved from the current master using Packsize/product matching.'}</div></div></div>
+    <div className="alert success"><DollarSign size={17}/><div><strong>{ruleTitle}</strong><div>{ruleText}</div></div></div>
 
-    <label className="dropzone"><FileSpreadsheet size={26}/><strong>{file?.name || `Choose ${accountCode === 'daraz' ? 'Daraz' : 'Shajgoj'} CPP workbook`}</strong><span>Excel .xlsx</span><input type="file" accept=".xlsx" onChange={(e)=>{setFile(e.target.files?.[0]||null);setPreview(null);setSuccess('');setError('');setEffectiveFrom('');setEffectiveTo('');}}/></label>
-    <div className="action-row"><button className="button" disabled={!file||busy} onClick={()=>void submit('preview')}>{busy?'Reading…':'Preview CPP file'}</button></div>
+    <label className="dropzone"><FileSpreadsheet size={26}/><strong>{file?.name || `Choose ${selectedAccount.name} CPP workbook`}</strong><span>Excel .xlsx</span><input type="file" accept=".xlsx" onChange={(e)=>void chooseFile(e.target.files?.[0]||null)}/></label>
+
+    {!fixedProfile && file && busy && !inspection && <div className="alert success"><FileSpreadsheet size={17}/><div><strong>Inspecting workbook…</strong><div>Detecting worksheets and likely SKU / CPP price columns.</div></div></div>}
+
+    {!fixedProfile && inspection && selectedSheet && <div className="preview-panel">
+      <div className="card-head"><div><h3>Map CPP columns</h3><p>Confirm which columns contain the marketplace identifier and approved CPP price. Suggested columns are preselected when detected.</p></div></div>
+      <div className="form-grid two">
+        <label><span>Worksheet</span><select value={selectedSheet.name} onChange={(e)=>applySheet(e.target.value)}>{inspection.sheets.map((sheet)=><option key={sheet.name} value={sheet.name}>{sheet.name}</option>)}</select></label>
+        <label><span>Header row</span><input type="number" min="1" value={headerRow} onChange={(e)=>{setHeaderRow(Number(e.target.value)||1);setPreview(null);}}/></label>
+        <label><span>Marketplace SKU / Product ID *</span><select value={skuColumn} onChange={(e)=>{setSkuColumn(e.target.value);setPreview(null);}}><option value="">Choose column…</option>{selectedSheet.columns.map((c)=><option key={`sku-${c}`} value={c}>{c}</option>)}</select></label>
+        <label><span>Approved CPP price *</span><select value={priceColumn} onChange={(e)=>{setPriceColumn(e.target.value);setPreview(null);}}><option value="">Choose column…</option>{selectedSheet.columns.map((c)=><option key={`price-${c}`} value={c}>{c}</option>)}</select></label>
+        <label><span>Product name</span><select value={productNameColumn} onChange={(e)=>{setProductNameColumn(e.target.value);setPreview(null);}}><option value="">— Optional —</option>{selectedSheet.columns.map((c)=><option key={`name-${c}`} value={c}>{c}</option>)}</select></label>
+        <label><span>Brand</span><select value={brandColumn} onChange={(e)=>{setBrandColumn(e.target.value);setPreview(null);}}><option value="">— Optional —</option>{selectedSheet.columns.map((c)=><option key={`brand-${c}`} value={c}>{c}</option>)}</select></label>
+        <label><span>Category</span><select value={categoryColumn} onChange={(e)=>{setCategoryColumn(e.target.value);setPreview(null);}}><option value="">— Optional —</option>{selectedSheet.columns.map((c)=><option key={`category-${c}`} value={c}>{c}</option>)}</select></label>
+        <label><span>MRP / original price</span><select value={mrpColumn} onChange={(e)=>{setMrpColumn(e.target.value);setPreview(null);}}><option value="">— Optional —</option>{selectedSheet.columns.map((c)=><option key={`mrp-${c}`} value={c}>{c}</option>)}</select></label>
+      </div>
+      {selectedSheet.sampleRows.length>0 && <div className="sample-block"><strong>Source sample</strong><div className="table-wrap mini"><table><thead><tr>{selectedSheet.columns.slice(0,8).map((c)=><th key={c}>{c}</th>)}</tr></thead><tbody>{selectedSheet.sampleRows.map((row,i)=><tr key={i}>{selectedSheet.columns.slice(0,8).map((c)=><td key={c}>{String(row[c]??'')}</td>)}</tr>)}</tbody></table></div></div>}
+      <p className="muted">For these accounts, the selected marketplace SKU/Product ID is authoritative for scraping. Master mapping enriches the product when available but does not block a valid direct SKU from becoming scrapable.</p>
+    </div>}
+
+    <div className="action-row"><button className="button" disabled={!file||busy||!genericReady} onClick={()=>void submit('preview')}>{busy?'Reading…':'Preview CPP file'}</button></div>
 
     {preview && <div className="preview-panel">
       <div className="alert success"><CheckCircle2 size={17}/><div><strong>{preview.profileName}</strong><div>{preview.profileNote}</div></div></div>
@@ -217,7 +332,7 @@ function CppUpload() {
       </div>
       {preview.warnings.map((warning)=><div className="alert warning" key={warning}>{warning}</div>)}
       <div className="sample-block"><strong>Preview sample</strong><div className="table-wrap mini"><table><thead><tr><th>Source</th><th>Marketplace SKU</th><th>Product</th><th>CPP</th><th>Mapping</th><th>Scrapable</th></tr></thead><tbody>{preview.sample.slice(0,12).map((row,i)=><tr key={`${row.sourceIdentifier}-${i}`}><td>{row.sourceIdentifier}</td><td>{row.accountSku||'—'}</td><td>{row.productName||row.sourcePacksize||'—'}</td><td><strong>{row.expectedPrice.toFixed(2)}</strong></td><td>{row.mappingStatus}{row.matchScore!==''&&row.matchScore!==1?` (${row.matchScore})`:''}</td><td>{row.scrapable?'Yes':'No'}</td></tr>)}</tbody></table></div></div>
-      <p className="muted">Unmapped rows are preserved in the reference set. Only rows with a resolved marketplace SKU are made available to the scraper.</p>
+      <p className="muted">Unmapped master rows are preserved. Direct-SKU accounts remain scrapable when the marketplace identifier is present; Shajgoj still requires a resolved marketplace SKU.</p>
       <button className="button danger-safe" disabled={busy||!preview.valid} onClick={()=>void submit('commit')}><UploadCloud size={17}/>Activate CPP reference set</button>
     </div>}
   </section>;

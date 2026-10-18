@@ -1,6 +1,6 @@
 import { loadWorkbook, valueText, type SheetValue, type WorksheetData } from '@/lib/excel';
 
-export type CppAccountCode = 'daraz' | 'shajgoj';
+export type CppAccountCode = 'daraz' | 'shajgoj' | 'pandamart' | 'othoba' | 'arogga' | 'shwapno';
 
 export type ParsedCppRow = {
   sourceSheet: string;
@@ -27,6 +27,36 @@ export type ParsedCppWorkbook = {
   detectedSheets: string[];
   suggestedEffectiveFrom: string | null;
   suggestedEffectiveTo: string | null;
+};
+
+export type GenericCppMapping = {
+  sheetName: string;
+  headerRow: number;
+  skuColumn: string;
+  priceColumn: string;
+  productNameColumn?: string;
+  brandColumn?: string;
+  categoryColumn?: string;
+  mrpColumn?: string;
+};
+
+export type GenericCppSheetInspection = {
+  name: string;
+  headerRow: number;
+  columns: string[];
+  suggestedSkuColumn: string;
+  suggestedPriceColumn: string;
+  suggestedProductNameColumn: string;
+  suggestedBrandColumn: string;
+  suggestedCategoryColumn: string;
+  suggestedMrpColumn: string;
+  sampleRows: Record<string, SheetValue>[];
+};
+
+export type GenericCppInspection = {
+  profileName: string;
+  profileNote: string;
+  sheets: GenericCppSheetInspection[];
 };
 
 function canon(value: unknown): string {
@@ -241,8 +271,240 @@ async function parseShajgojAsync(buffer: Buffer, fileName: string): Promise<Pars
   };
 }
 
-export async function parseCppReferenceWorkbook(buffer: Buffer, accountCode: CppAccountCode, fileName: string): Promise<ParsedCppWorkbook> {
+/** Arogga commercial CPP profile. Only the base-SKU sheet represents active price targets. */
+async function parseAroggaAsync(buffer: Buffer, fileName: string): Promise<ParsedCppWorkbook> {
+  const workbook = await loadWorkbook(buffer);
+  const sheet = workbook.worksheets.find((s) => /all\s*sku\s*cpp\s*sku/i.test(s.name))
+    || workbook.worksheets.find((s) => findHeaderRow(s, [['Arogga code'], ['Selling Price']]))
+    || workbook.worksheets[0];
+  const header = findHeaderRow(sheet, [['Arogga code'], ['Selling Price']]);
+  if (!header) throw new Error('Arogga CPP workbook must contain Arogga code and Selling Price columns.');
+  const skuIdx = headerIndex(header.headers, ['Arogga code']);
+  const priceIdx = headerIndex(header.headers, ['Selling Price']);
+  const nameIdx = headerIndex(header.headers, ['Sku Updated Perfect Name', 'Product Name']);
+  const packIdx = headerIndex(header.headers, ['Packsize']);
+  const brandIdx = headerIndex(header.headers, ['Brand(PH)(m.d.)', 'Brand']);
+  const categoryIdx = headerIndex(header.headers, ['Category']);
+  const mrpIdx = headerIndex(header.headers, ['MRP']);
+  const rows: ParsedCppRow[] = [];
+  const warnings: string[] = [];
+  const seen = new Map<string, { price: number; row: number }>();
+  let missingCodes = 0;
+  for (let r = header.row + 1; r < sheet.rows.length; r++) {
+    const cells = sheet.rows[r] || [];
+    if (!cells.some((cell) => valueText(cell))) continue;
+    const code = cleanSku(cells[skuIdx]);
+    if (!code) { missingCodes++; continue; }
+    const expectedPrice = numberValue(cells[priceIdx]);
+    if (expectedPrice === null || expectedPrice < 0) {
+      warnings.push(`${sheet.name} row ${r + 1}: invalid Selling Price; skipped Arogga code ${code}.`);
+      continue;
+    }
+    const prior = seen.get(code);
+    if (prior) {
+      warnings.push(`${sheet.name} row ${r + 1}: duplicate Arogga code ${code} (first at row ${prior.row})${Math.abs(prior.price - expectedPrice) > 0.005 ? ' with CONFLICTING selling price' : ''}; skipped. Review before activation.`);
+      continue;
+    }
+    seen.set(code, { price: expectedPrice, row: r + 1 });
+    rows.push({
+      sourceSheet: sheet.name, rowNumber: r + 1, sourceIdentifier: code,
+      directAccountSku: code,
+      sourcePacksize: packIdx >= 0 ? valueText(cells[packIdx]) : '',
+      productName: nameIdx >= 0 ? valueText(cells[nameIdx]) : '',
+      brand: brandIdx >= 0 ? valueText(cells[brandIdx]) : '',
+      category: categoryIdx >= 0 ? valueText(cells[categoryIdx]) : '',
+      expectedPrice, mrp: mrpIdx >= 0 ? numberValue(cells[mrpIdx]) : null,
+      supportAmount: null, effectiveFrom: null, effectiveTo: null,
+      raw: rawObject(header.headers, cells),
+    });
+  }
+  if (missingCodes) warnings.push(`${missingCodes} source rows have no Arogga code; excluded from scrapeable CPP targets (not matched by product name).`);
+  for (const s of workbook.worksheets) {
+    if (s.name !== sheet.name) warnings.push(`Worksheet "${s.name}" is auxiliary and was not included in active Arogga CPP targets.`);
+  }
+  const inferred = monthFromFilename(fileName);
+  return {
+    profileName: 'Arogga CPP — Arogga code + Selling Price',
+    profileNote: 'Expected CPP comes from Selling Price; Arogga code is the authoritative marketplace identifier. Missing or duplicate codes are excluded. Offer and enlistment sheets are excluded.',
+    rows, warnings, detectedSheets: [sheet.name],
+    suggestedEffectiveFrom: inferred?.from || null,
+    suggestedEffectiveTo: inferred?.to || null,
+  };
+}
+
+const GENERIC_ACCOUNT_NAMES: Record<CppAccountCode, string> = {
+  daraz: 'Daraz',
+  shajgoj: 'Shajgoj',
+  pandamart: 'Pandamart',
+  othoba: 'Othoba',
+  arogga: 'Arogga',
+  shwapno: 'Shwapno',
+};
+
+const GENERIC_SKU_HINTS = [
+  'account sku', 'marketplace sku', 'sku', 'product id', 'productid', 'product code', 'item id',
+  'article code', 'article', 'code', 'seller sku', 'site sku', 'othoba sku', 'pandamart sku',
+  'arogga sku', 'shwapno sku',
+];
+const GENERIC_PRICE_HINTS = [
+  'cpp', 'cpp price', 'target price', 'expected price', 'approved price', 'selling price',
+  'offer price', 'promo price', 'promotional price', 'final price',
+];
+const GENERIC_NAME_HINTS = ['product name', 'item name', 'name', 'sku name', 'product'];
+const GENERIC_BRAND_HINTS = ['brand', 'brand name'];
+const GENERIC_CATEGORY_HINTS = ['category', 'ubl category', 'cat'];
+const GENERIC_MRP_HINTS = ['mrp', 'original price', 'list price'];
+
+function bestColumn(headers: SheetValue[], hints: string[]): string {
+  const names = headers.map((h) => valueText(h)).filter(Boolean);
+  for (const hint of hints) {
+    const exact = names.find((name) => canon(name) === canon(hint));
+    if (exact) return exact;
+  }
+  for (const hint of hints) {
+    const partial = names.find((name) => canon(name).includes(canon(hint)) || canon(hint).includes(canon(name)));
+    if (partial) return partial;
+  }
+  return '';
+}
+
+function genericHeaderRow(sheet: WorksheetData): { row: number; headers: SheetValue[] } | null {
+  let best: { row: number; headers: SheetValue[]; score: number } | null = null;
+  for (let r = 0; r < Math.min(sheet.rows.length, 20); r++) {
+    const headers = sheet.rows[r] || [];
+    const nonEmpty = headers.map((h) => valueText(h)).filter(Boolean).length;
+    if (nonEmpty < 2) continue;
+    const sku = bestColumn(headers, GENERIC_SKU_HINTS);
+    const price = bestColumn(headers, GENERIC_PRICE_HINTS);
+    const score = nonEmpty + (sku ? 40 : 0) + (price ? 40 : 0);
+    if (!best || score > best.score) best = { row: r, headers, score };
+  }
+  return best ? { row: best.row, headers: best.headers } : null;
+}
+
+function columnIndexByName(headers: SheetValue[], name: string): number {
+  const wanted = canon(name);
+  if (!wanted) return -1;
+  return headers.findIndex((header) => canon(header) === wanted);
+}
+
+function sampleRows(sheet: WorksheetData, headerRow: number, headers: SheetValue[]): Record<string, SheetValue>[] {
+  const out: Record<string, SheetValue>[] = [];
+  for (let r = headerRow + 1; r < sheet.rows.length && out.length < 4; r++) {
+    const cells = sheet.rows[r] || [];
+    if (!cells.some((cell) => valueText(cell))) continue;
+    out.push(rawObject(headers, cells));
+  }
+  return out;
+}
+
+export async function inspectGenericCppWorkbook(buffer: Buffer): Promise<GenericCppInspection> {
+  const workbook = await loadWorkbook(buffer);
+  const sheets = workbook.worksheets.map((sheet) => {
+    const header = genericHeaderRow(sheet);
+    if (!header) return null;
+    const columns = header.headers.map((h) => valueText(h)).filter(Boolean);
+    if (!columns.length) return null;
+    return {
+      name: sheet.name,
+      headerRow: header.row + 1,
+      columns,
+      suggestedSkuColumn: bestColumn(header.headers, GENERIC_SKU_HINTS),
+      suggestedPriceColumn: bestColumn(header.headers, GENERIC_PRICE_HINTS),
+      suggestedProductNameColumn: bestColumn(header.headers, GENERIC_NAME_HINTS),
+      suggestedBrandColumn: bestColumn(header.headers, GENERIC_BRAND_HINTS),
+      suggestedCategoryColumn: bestColumn(header.headers, GENERIC_CATEGORY_HINTS),
+      suggestedMrpColumn: bestColumn(header.headers, GENERIC_MRP_HINTS),
+      sampleRows: sampleRows(sheet, header.row, header.headers),
+    } satisfies GenericCppSheetInspection;
+  }).filter(Boolean) as GenericCppSheetInspection[];
+
+  return {
+    profileName: 'Direct-SKU CPP upload',
+    profileNote: 'Choose the marketplace SKU/Product ID column and the approved CPP price column. No fuzzy SKU matching is used.',
+    sheets,
+  };
+}
+
+async function parseGenericDirectAsync(
+  buffer: Buffer,
+  fileName: string,
+  accountCode: CppAccountCode,
+  mapping: GenericCppMapping,
+): Promise<ParsedCppWorkbook> {
+  const workbook = await loadWorkbook(buffer);
+  const sheet = workbook.getWorksheet(mapping.sheetName);
+  if (!sheet) throw new Error(`Worksheet ${mapping.sheetName} was not found.`);
+  const headerRow = Math.max(1, Number(mapping.headerRow || 1)) - 1;
+  const headers = sheet.rows[headerRow] || [];
+
+  const skuIdx = columnIndexByName(headers, mapping.skuColumn);
+  const priceIdx = columnIndexByName(headers, mapping.priceColumn);
+  if (skuIdx < 0) throw new Error(`Marketplace SKU column "${mapping.skuColumn}" was not found in ${sheet.name}.`);
+  if (priceIdx < 0) throw new Error(`CPP price column "${mapping.priceColumn}" was not found in ${sheet.name}.`);
+
+  const nameIdx = mapping.productNameColumn ? columnIndexByName(headers, mapping.productNameColumn) : -1;
+  const brandIdx = mapping.brandColumn ? columnIndexByName(headers, mapping.brandColumn) : -1;
+  const categoryIdx = mapping.categoryColumn ? columnIndexByName(headers, mapping.categoryColumn) : -1;
+  const mrpIdx = mapping.mrpColumn ? columnIndexByName(headers, mapping.mrpColumn) : -1;
+
+  const rows: ParsedCppRow[] = [];
+  const warnings: string[] = [];
+  const seen = new Set<string>();
+  for (let r = headerRow + 1; r < sheet.rows.length; r++) {
+    const cells = sheet.rows[r] || [];
+    const accountSku = cleanSku(cells[skuIdx]);
+    if (!accountSku) continue;
+    const expectedPrice = numberValue(cells[priceIdx]);
+    if (expectedPrice === null || expectedPrice < 0) {
+      warnings.push(`${sheet.name} row ${r + 1}: skipped because CPP price is invalid.`);
+      continue;
+    }
+    if (seen.has(accountSku)) {
+      warnings.push(`${sheet.name} row ${r + 1}: duplicate marketplace SKU ${accountSku} skipped.`);
+      continue;
+    }
+    seen.add(accountSku);
+    rows.push({
+      sourceSheet: sheet.name,
+      rowNumber: r + 1,
+      sourceIdentifier: accountSku,
+      directAccountSku: accountSku,
+      sourcePacksize: '',
+      productName: nameIdx >= 0 ? valueText(cells[nameIdx]) : '',
+      brand: brandIdx >= 0 ? valueText(cells[brandIdx]) : '',
+      category: categoryIdx >= 0 ? valueText(cells[categoryIdx]) : '',
+      expectedPrice,
+      mrp: mrpIdx >= 0 ? numberValue(cells[mrpIdx]) : null,
+      supportAmount: null,
+      effectiveFrom: null,
+      effectiveTo: null,
+      raw: rawObject(headers, cells),
+    });
+  }
+
+  const inferred = monthFromFilename(fileName);
+  const accountName = GENERIC_ACCOUNT_NAMES[accountCode];
+  return {
+    profileName: `${accountName} CPP — direct SKU + approved price`,
+    profileNote: `Expected CPP uses "${mapping.priceColumn}". Marketplace SKU/Product ID is read directly from "${mapping.skuColumn}"; no fuzzy SKU matching is used.`,
+    rows,
+    warnings,
+    detectedSheets: [sheet.name],
+    suggestedEffectiveFrom: inferred?.from || null,
+    suggestedEffectiveTo: inferred?.to || null,
+  };
+}
+
+export async function parseCppReferenceWorkbook(
+  buffer: Buffer,
+  accountCode: CppAccountCode,
+  fileName: string,
+  genericMapping?: GenericCppMapping,
+): Promise<ParsedCppWorkbook> {
   if (accountCode === 'daraz') return parseDarazAsync(buffer, fileName);
   if (accountCode === 'shajgoj') return parseShajgojAsync(buffer, fileName);
-  throw new Error(`CPP upload is not configured for ${accountCode}.`);
+  if (accountCode === 'arogga') return parseAroggaAsync(buffer, fileName);
+  if (!genericMapping) throw new Error(`Choose the worksheet, marketplace SKU column and CPP price column for ${GENERIC_ACCOUNT_NAMES[accountCode]}.`);
+  return parseGenericDirectAsync(buffer, fileName, accountCode, genericMapping);
 }

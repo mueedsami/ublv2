@@ -60,7 +60,10 @@ def load_csv_targets(path: Path, account_code: str | None = None) -> list[Scrape
 def load_cpp_targets(db, account_code: str, limit: int | None = None) -> list[ScrapeTarget]:
     q = (
         db.table("v_cpp_scrapable_targets")
-        .select("reference_set_id,account_code,account_sku,basepack_id,basepack_name,product_name,brand,category,expected_price,mrp,tolerance_pct,mapping_status")
+        .select(
+            "target_id,reference_set_id,account_id,account_code,account_sku,basepack_id,basepack_name,"
+            "product_name,brand,category,expected_price,mrp,tolerance_pct,mapping_status,source_identifier"
+        )
         .eq("account_code", account_code)
         .order("account_sku")
     )
@@ -78,11 +81,14 @@ def load_cpp_targets(db, account_code: str, limit: int | None = None) -> list[Sc
             category=r.get("category") or "",
             metadata={
                 "target_source": "cpp",
+                "target_id": r.get("target_id"),
                 "reference_set_id": r.get("reference_set_id"),
+                "account_id": r.get("account_id"),
                 "expected_price": r.get("expected_price"),
                 "mrp": r.get("mrp"),
                 "tolerance_pct": r.get("tolerance_pct"),
                 "mapping_status": r.get("mapping_status"),
+                "source_identifier": r.get("source_identifier"),
             },
         )
         for r in rows

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
-import { BarChart3, ChevronDown, Database, LayoutDashboard, PackagePlus, Search, ShoppingBag, Store, Upload, Utensils } from 'lucide-react';
+import { BadgeDollarSign, BarChart3, ChevronDown, Database, LayoutDashboard, PackagePlus, Search, ShoppingBag, Store, Upload, Utensils } from 'lucide-react';
 
 const olaNav = [
   { href: '/daraz', label: 'Daraz', icon: ShoppingBag },
@@ -64,6 +64,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <Link href="/enlistment" className={`nav-item ${pathname.startsWith('/enlistment') ? 'active' : ''}`}>
             <PackagePlus size={18} strokeWidth={1.8} />
             <span>Enlistment</span>
+          </Link>
+
+          <Link href="/cpp" className={`nav-item ${pathname.startsWith('/cpp') ? 'active' : ''}`}>
+            <BadgeDollarSign size={18} strokeWidth={1.8} />
+            <span>CPP Price</span>
           </Link>
 
           <div className={`nav-group ${olaOpen ? 'open' : ''} ${olaActive ? 'active' : ''}`}>

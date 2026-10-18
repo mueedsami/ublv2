@@ -102,6 +102,73 @@ export function SeverityStrip({ critical = 0, warning = 0, watch = 0, positive =
   </div>;
 }
 
+
+export type SalesShareSlice = {
+  label: string;
+  sold_qty: number;
+  sales_value: number;
+  sku_count: number;
+};
+
+const SHARE_COLORS = ['#3f7fe8','#24a36f','#dfa43d','#8b67d9','#d6545e','#2f9aa0','#9a6a43'];
+
+function compactNumber(value: number) {
+  return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+
+export function SalesShareDonut({
+  rows, metric, title, subtitle, valuePrefix = '', valueSuffix = '', topN = 6,
+}: {
+  rows: SalesShareSlice[];
+  metric: 'sales_value' | 'sold_qty';
+  title: string;
+  subtitle?: string;
+  valuePrefix?: string;
+  valueSuffix?: string;
+  topN?: number;
+}) {
+  const sorted = [...rows].sort((a, b) => Number(b[metric] || 0) - Number(a[metric] || 0));
+  const total = sorted.reduce((sum, row) => sum + Number(row[metric] || 0), 0);
+  if (!sorted.length || total <= 0) return <div className="sales-share-empty">No sales contribution data for this period.</div>;
+
+  const visible = sorted.slice(0, topN).map((row) => ({ ...row }));
+  const rest = sorted.slice(topN);
+  if (rest.length) {
+    visible.push({
+      label: 'Others',
+      sold_qty: rest.reduce((sum, row) => sum + Number(row.sold_qty || 0), 0),
+      sales_value: rest.reduce((sum, row) => sum + Number(row.sales_value || 0), 0),
+      sku_count: rest.reduce((sum, row) => sum + Number(row.sku_count || 0), 0),
+    });
+  }
+
+  let cursor = 0;
+  const segments = visible.map((row, index) => {
+    const share = (Number(row[metric] || 0) / total) * 100;
+    const start = cursor; cursor += share;
+    return `${SHARE_COLORS[index % SHARE_COLORS.length]} ${start}% ${cursor}%`;
+  });
+  const formatSelected = (value: number) => `${valuePrefix}${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}${valueSuffix}`;
+
+  return <div className="sales-share-chart">
+    <div className="sales-share-heading"><div><h3>{title}</h3>{subtitle ? <p>{subtitle}</p> : null}</div></div>
+    <div className="sales-share-body">
+      <div className="sales-share-donut" style={{ background: `conic-gradient(${segments.join(',')})` }}>
+        <div><strong>{valuePrefix}{compactNumber(total)}{valueSuffix}</strong><span>{metric === 'sales_value' ? 'value' : 'quantity'}</span></div>
+      </div>
+      <div className="sales-share-legend">{visible.map((row, index) => {
+        const selected = Number(row[metric] || 0);
+        const share = total > 0 ? (selected / total) * 100 : 0;
+        return <div key={`${row.label}-${index}`} className="sales-share-row">
+          <i style={{ background: SHARE_COLORS[index % SHARE_COLORS.length] }} />
+          <div><strong>{row.label}</strong><small>{row.sku_count} SKU{row.sku_count === 1 ? '' : 's'} · {metric === 'sales_value' ? `${Number(row.sold_qty || 0).toLocaleString()} units` : `৳${Number(row.sales_value || 0).toLocaleString(undefined,{maximumFractionDigits:0})}`}</small></div>
+          <div className="sales-share-row-value"><b>{share.toFixed(1)}%</b><span>{formatSelected(selected)}</span></div>
+        </div>;
+      })}</div>
+    </div>
+  </div>;
+}
+
 export function FilterField({ label, children }: { label: string; children: ReactNode }) {
   return <label className="account-filter-field"><span>{label}</span>{children}</label>;
 }

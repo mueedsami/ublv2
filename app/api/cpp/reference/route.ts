@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { parseCppReferenceWorkbook, type CppAccountCode, type ParsedCppRow } from '@/lib/cpp-parser';
+import { inspectGenericCppWorkbook, parseCppReferenceWorkbook, type CppAccountCode, type GenericCppMapping, type ParsedCppRow } from '@/lib/cpp-parser';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
-const SUPPORTED = new Set<CppAccountCode>(['daraz', 'shajgoj']);
+const SUPPORTED = new Set<CppAccountCode>(['daraz', 'shajgoj', 'pandamart', 'othoba', 'arogga', 'shwapno']);
+const DIRECT_SKU_ACCOUNTS = new Set<CppAccountCode>(['daraz', 'pandamart', 'othoba', 'arogga', 'shwapno']);
 
 type LookupRow = {
   account_id: string;
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest) {
     const file = form.get('file') as File | null;
     const accountCode = String(form.get('account') || '').trim().toLowerCase() as CppAccountCode;
     const preview = String(form.get('preview') || '') === 'true';
+    const inspect = String(form.get('inspect') || '') === 'true';
     const confirmed = String(form.get('confirmed') || '') === 'true';
     const tolerancePercent = Number(form.get('tolerancePct') ?? 1);
     const tolerancePct = tolerancePercent / 100;
@@ -129,7 +131,7 @@ export async function POST(req: NextRequest) {
     const effectiveToOverride = String(form.get('effectiveTo') || '').trim();
 
     if (!file) return NextResponse.json({ error: 'CPP Excel file is required.' }, { status: 400 });
-    if (!SUPPORTED.has(accountCode)) return NextResponse.json({ error: 'CPP upload is currently enabled for Daraz and Shajgoj only.' }, { status: 400 });
+    if (!SUPPORTED.has(accountCode)) return NextResponse.json({ error: 'CPP upload is not enabled for this account.' }, { status: 400 });
     if (!Number.isFinite(tolerancePercent) || tolerancePercent < 0 || tolerancePercent > 100) {
       return NextResponse.json({ error: 'Tolerance must be between 0% and 100%.' }, { status: 400 });
     }
@@ -137,7 +139,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Effective-to date cannot be earlier than effective-from date.' }, { status: 400 });
     }
 
-    const parsed = await parseCppReferenceWorkbook(Buffer.from(await file.arrayBuffer()), accountCode, file.name);
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    if (inspect) {
+      if (accountCode === 'daraz' || accountCode === 'shajgoj' || accountCode === 'arogga') {
+        return NextResponse.json({ error: 'This account uses a fixed CPP workbook profile and does not require column mapping.' }, { status: 400 });
+      }
+      const inspection = await inspectGenericCppWorkbook(fileBuffer);
+      if (!inspection.sheets.length) return NextResponse.json({ error: 'No usable worksheet/header row was found in the CPP workbook.' }, { status: 400 });
+      return NextResponse.json(inspection);
+    }
+
+    const genericMapping: GenericCppMapping | undefined = DIRECT_SKU_ACCOUNTS.has(accountCode) && accountCode !== 'daraz' && accountCode !== 'arogga'
+      ? {
+          sheetName: String(form.get('sheetName') || '').trim(),
+          headerRow: Number(form.get('headerRow') || 1),
+          skuColumn: String(form.get('skuColumn') || '').trim(),
+          priceColumn: String(form.get('priceColumn') || '').trim(),
+          productNameColumn: String(form.get('productNameColumn') || '').trim(),
+          brandColumn: String(form.get('brandColumn') || '').trim(),
+          categoryColumn: String(form.get('categoryColumn') || '').trim(),
+          mrpColumn: String(form.get('mrpColumn') || '').trim(),
+        }
+      : undefined;
+
+    const parsed = await parseCppReferenceWorkbook(fileBuffer, accountCode, file.name, genericMapping);
     if (!parsed.rows.length) return NextResponse.json({ error: 'No valid CPP rows were found.', warnings: parsed.warnings }, { status: 400 });
 
     const db = getSupabaseAdmin();
@@ -169,7 +194,7 @@ export async function POST(req: NextRequest) {
       let matchScore: number | null = null;
       let accountSku = source.directAccountSku;
 
-      if (accountCode === 'daraz') {
+      if (DIRECT_SKU_ACCOUNTS.has(accountCode)) {
         const direct = uniqueLookup(bySku.get(cleanSku(source.directAccountSku)) || []);
         match = direct[0] || null;
         mappingStatus = match ? 'direct_mapped' : 'direct_unmapped';
@@ -224,8 +249,8 @@ export async function POST(req: NextRequest) {
     if (accountCode === 'shajgoj' && nonScrapable > 0) {
       warnings.push(`${nonScrapable} Shajgoj CPP rows could not be resolved to a marketplace SKU and will be stored as non-scrapable until mapped.`);
     }
-    if (accountCode === 'daraz' && unmapped > 0) {
-      warnings.push(`${unmapped} Daraz SKUs are outside the current OLA master, but remain scrapable because the CPP file contains the Daraz SKU directly.`);
+    if (DIRECT_SKU_ACCOUNTS.has(accountCode) && unmapped > 0) {
+      warnings.push(`${unmapped} ${account.name} marketplace SKUs are outside the current master, but remain scrapable because the CPP file contains the marketplace SKU/Product ID directly.`);
     }
 
     const payload = {

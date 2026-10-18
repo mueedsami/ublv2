@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Download, MapPin, RefreshCw, RotateCcw, ShieldAlert, TrendingDown } from 'lucide-react';
 import { exportCsv } from '@/lib/csv-export';
-import { FilterField, FlagMetricChips, HorizontalBars, MiniTrend, SearchField, SeverityStrip, olaTone } from '@/components/AccountVisuals';
+import { FilterField, FlagMetricChips, HorizontalBars, MiniTrend, SalesShareDonut, SearchField, SeverityStrip, olaTone } from '@/components/AccountVisuals';
 
 type OlaRow = {
   stock_date: string;
@@ -53,12 +53,16 @@ type FlagRow = {
   message: string;
 };
 
-type TabKey = 'overview' | 'branches' | 'flags' | 'daily' | 'monthly';
+type SalesShareSlice = { label: string; sold_qty: number; sales_value: number; sku_count: number };
+type SalesMixPeriod = { key: string; label: string; period_start: string; period_end: string; is_partial: boolean; totals: { sold_qty: number; sales_value: number; sku_count: number; mapped_sold_qty: number; mapped_sales_value: number; mapped_sku_count: number; mapping_coverage_pct: number }; brand: SalesShareSlice[]; format: SalesShareSlice[] };
+type SalesMixMetric = 'sales_value' | 'sold_qty';
+type TabKey = 'overview' | 'sales' | 'branches' | 'flags' | 'daily' | 'monthly';
 type AvailabilityFilter = 'all' | 'has-oos' | 'fully-available';
 type PandaSeverity = 'all' | FlagRow['severity'];
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
+  { key: 'sales', label: 'Sales Mix' },
   { key: 'branches', label: 'Branch OLA' },
   { key: 'flags', label: 'Flags' },
   { key: 'daily', label: 'Daily History' },
@@ -86,6 +90,9 @@ export default function PandamartPanel() {
   const [daily, setDaily] = useState<DailySummary[]>([]);
   const [monthly, setMonthly] = useState<MonthlyRow[]>([]);
   const [flags, setFlags] = useState<FlagRow[]>([]);
+  const [salesMix, setSalesMix] = useState<SalesMixPeriod[]>([]);
+  const [salesMixKey, setSalesMixKey] = useState('last-30d');
+  const [salesMixMetric, setSalesMixMetric] = useState<SalesMixMetric>('sales_value');
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>('all');
   const [branchSearch, setBranchSearch] = useState('');
@@ -103,11 +110,12 @@ export default function PandamartPanel() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load Pandamart intelligence.');
       setBranches((json.latestBranches || []).filter((r: OlaRow) => r.scope === 'branch'));
-      setDaily(json.daily || []); setMonthly(json.monthly || []); setFlags(json.flags || []);
+      setDaily(json.daily || []); setMonthly(json.monthly || []); setFlags(json.flags || []); setSalesMix(json.salesMix?.periods || []);
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load Pandamart intelligence.'); }
     finally { setLoading(false); }
   }
   useEffect(() => { void load(); }, []);
+  useEffect(() => { if (salesMix.length && !salesMix.some((row) => row.key === salesMixKey)) setSalesMixKey(salesMix[0].key); }, [salesMix, salesMixKey]);
 
   const latest = daily[0] ?? null;
   const currentMonth = monthly[0] ?? null;
@@ -121,6 +129,11 @@ export default function PandamartPanel() {
     });
   }, [branches, availabilityFilter, branchSearch]);
 
+  const activeSalesMix = salesMix.find((row) => row.key === salesMixKey) ?? salesMix[0] ?? null;
+  const mixTopBrand = activeSalesMix?.brand.filter((row) => row.label !== 'Unmapped').sort((a, b) => Number(b[salesMixMetric]) - Number(a[salesMixMetric]))[0] ?? null;
+  const mixTopFormat = activeSalesMix?.format.filter((row) => row.label !== 'Unmapped').sort((a, b) => Number(b[salesMixMetric]) - Number(a[salesMixMetric]))[0] ?? null;
+  const money = (value: number | null | undefined) => value == null ? '—' : `৳${Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  const num = (value: number | null | undefined) => value == null ? '—' : Number(value).toLocaleString(undefined, { maximumFractionDigits: 0 });
   const flagTypes = useMemo(() => Array.from(new Set(flags.map((f) => f.flag_type))).sort(), [flags]);
   const visibleFlags = useMemo(() => {
     const q = flagSearch.trim().toLowerCase();
@@ -204,6 +217,17 @@ export default function PandamartPanel() {
       </section>
 
       {priorityFlags.length ? <section className="card account-attention-card"><div className="card-head"><div><h2>Immediate action queue</h2><p>Critical operational signals from the current snapshot.</p></div><button className="button secondary compact" onClick={() => setActiveTab('flags')}>Open all flags</button></div><div className="account-attention-grid">{priorityFlags.map((flag) => <button type="button" key={`${flag.flag_type}-${flag.entity_key}`} onClick={() => { setFlagSearch(flag.entity_name); setActiveTab('flags'); }}><span><ShieldAlert size={14}/> {flagLabel(flag.flag_type)}</span><strong>{flag.entity_name}</strong><p>{flag.message}</p></button>)}</div></section> : null}
+    </> : null}
+
+    {latest && activeTab === 'sales' ? <>
+      <section className="sales-mix-hero pandamart-sales-mix-hero">
+        <div><span className="account-hero-kicker">Pandamart sales contribution</span><h2>Brand and format share of sell-out</h2><p>Read the current sales mix by Pandamart GFV or sold quantity. Format uses the UBL master Product Type (for example Regular / CP); unresolved master mapping is kept visible instead of being guessed.</p></div>
+        <div className="sales-mix-hero-total"><span>Selected period</span><strong>{activeSalesMix?.label ?? 'No sales period'}</strong><small>{activeSalesMix ? `${dateLabel(activeSalesMix.period_start)} → ${dateLabel(activeSalesMix.period_end)}` : 'Upload Pandamart sales data first'}</small></div>
+      </section>
+      <section className="card sales-share-card">
+        <div className="sales-share-toolbar"><div><span className="eyebrow">Sales mix workbench</span><h2>What is driving Pandamart sales?</h2><p>Switch the period and metric without changing the underlying source semantics. Value uses Pandamart GFV (gfv_local).</p></div><div className="sales-share-controls"><label><span>Period</span><select value={salesMixKey} onChange={(e) => setSalesMixKey(e.target.value)}>{salesMix.map((row) => <option key={row.key} value={row.key}>{row.label}</option>)}</select></label><div className="sales-share-toggle"><button type="button" className={salesMixMetric === 'sales_value' ? 'active' : ''} onClick={() => setSalesMixMetric('sales_value')}>GFV value</button><button type="button" className={salesMixMetric === 'sold_qty' ? 'active' : ''} onClick={() => setSalesMixMetric('sold_qty')}>Sold qty</button></div></div></div>
+        {activeSalesMix ? <><div className="sales-share-summary"><div><span>Sold quantity</span><strong>{num(activeSalesMix.totals.sold_qty)}</strong><small>Units in selected period</small></div><div><span>GFV</span><strong>{money(activeSalesMix.totals.sales_value)}</strong><small>Source gfv_local total</small></div><div><span>Top brand</span><strong>{mixTopBrand?.label ?? '—'}</strong><small>{mixTopBrand ? salesMixMetric === 'sales_value' ? money(mixTopBrand.sales_value) : `${num(mixTopBrand.sold_qty)} units` : 'No mapped brand'}</small></div><div><span>Top format</span><strong>{mixTopFormat?.label ?? '—'}</strong><small>{mixTopFormat ? salesMixMetric === 'sales_value' ? money(mixTopFormat.sales_value) : `${num(mixTopFormat.sold_qty)} units` : 'No mapped format'}</small></div><div><span>Master mapping coverage</span><strong>{pct(activeSalesMix.totals.mapping_coverage_pct)}</strong><small>{activeSalesMix.totals.mapped_sku_count}/{activeSalesMix.totals.sku_count} selling SKUs mapped</small></div></div><div className="sales-share-grid"><SalesShareDonut rows={activeSalesMix.brand} metric={salesMixMetric} title="Brand share" subtitle="Top contributors + Others" valuePrefix={salesMixMetric === 'sales_value' ? '৳' : ''} valueSuffix={salesMixMetric === 'sold_qty' ? ' units' : ''}/><SalesShareDonut rows={activeSalesMix.format} metric={salesMixMetric} title="Format share" subtitle="UBL master Product Type" valuePrefix={salesMixMetric === 'sales_value' ? '৳' : ''} valueSuffix={salesMixMetric === 'sold_qty' ? ' units' : ''}/></div></> : <div className="empty">No Pandamart sales-mix data is available yet.</div>}
+      </section>
     </> : null}
 
     {latest && activeTab === 'branches' ? <>

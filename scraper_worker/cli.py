@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .runner import SUPPORTED_ACCOUNTS, run_many
+from .runner import run_many
 
 
 def main() -> None:
@@ -17,9 +17,11 @@ def main() -> None:
     p.add_argument("--export-csv", action="store_true", help="Write normalized local CSV output")
     p.add_argument("--output-dir", type=Path, default=Path("scraper_outputs"))
     p.add_argument("--no-db", action="store_true", help="Do not write runs/observations to Supabase")
+    p.add_argument("--parallel", action="store_true", help="Run selected accounts simultaneously")
+    p.add_argument("--max-workers", type=int, default=None, help="Maximum simultaneous account workers (default: CPP_MAX_WORKERS or 6)")
     args = p.parse_args()
 
-    accounts = SUPPORTED_ACCOUNTS if args.accounts.lower() == "all" else [x.strip().lower() for x in args.accounts.split(",") if x.strip()]
+    accounts = None if args.accounts.lower() == "all" else [x.strip().lower() for x in args.accounts.split(",") if x.strip()]
     result = run_many(
         accounts,
         args.checkpoint,
@@ -28,6 +30,8 @@ def main() -> None:
         limit=args.limit,
         write_db=not args.no_db,
         export_dir=args.output_dir if args.export_csv else None,
+        parallel=args.parallel,
+        max_workers=args.max_workers,
     )
     print(json.dumps(result, indent=2, default=str))
 
