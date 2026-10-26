@@ -6,23 +6,85 @@ export type EnlistmentStatus = typeof ENLISTMENT_STATUSES[number];
 
 export type AccountSummary = { id: string; code: string; name: string };
 
-export async function getEnlistmentPanelData() {
+export type EnlistmentListQuery = {
+  page?: number;
+  search?: string;
+  account?: string;
+  status?: string;
+};
+
+/** Loads a page of products, then loads ALL mappings belonging to those products. */
+export async function getEnlistmentPanelData(input: EnlistmentListQuery = {}) {
   const supabase = getSupabaseAdmin();
-  const [{ data: accounts, error: accountError }, { data: products, error: productError }, { data: imports }, { data: exports }] = await Promise.all([
-    supabase.from('accounts').select('id,code,name').eq('active', true).order('name'),
-    supabase.from('enlistment_products').select('*').eq('active', true).order('updated_at', { ascending: false }).limit(1000),
+  const pageSize = 50;
+  const page = Math.max(1, Math.min(100000, Math.floor(Number(input.page) || 1)));
+  const search = String(input.search || '').trim().slice(0, 120);
+  const accountCode = String(input.account || 'all');
+  const status = String(input.status || 'all');
+
+  const [{ data: accounts, error: accountError }, { data: imports }, { data: exports }] = await Promise.all([
+    supabase.from('accounts').select('id,code,name').order('name'),
     supabase.from('enlistment_imports').select('*').order('imported_at', { ascending: false }).limit(8),
     supabase.from('enlistment_exports').select('id,account_id,export_format,file_name,row_count,exported_at').order('exported_at', { ascending: false }).limit(12),
   ]);
   if (accountError) throw accountError;
-  if (productError) throw productError;
 
-  const productIds = (products || []).map((p: any) => p.id);
-  let targets: any[] = [];
-  if (productIds.length) {
-    const { data, error } = await supabase.from('enlistment_targets').select('*').in('enlistment_id', productIds);
+  const matchingAccount = accountCode === 'all'
+    ? null
+    : (accounts || []).find((a: any) => a.code === accountCode);
+  const accountMissing = accountCode !== 'all' && !matchingAccount;
+  const hasTargetFilter = accountCode !== 'all' || status !== 'all';
+  let products: any[] = [];
+  let total = 0;
+
+  if (!accountMissing) {
+    // Embedded INNER join filters product rows at the database BEFORE pagination.
+    // This makes account/status filtering accurate across the entire catalog.
+    let query = supabase.from('enlistment_products')
+      .select(hasTargetFilter ? '*,matching_targets:enlistment_targets!inner(id)' : '*', { count: 'exact' })
+      .eq('active', true);
+    if (hasTargetFilter) {
+      query = query.eq('matching_targets.selected', true);
+      if (matchingAccount) query = query.eq('matching_targets.account_id', matchingAccount.id);
+      if (status !== 'all') query = query.eq('matching_targets.status', status);
+    }
+    if (search) {
+      // Match words independently instead of treating punctuation-normalized input
+      // as one literal phrase. For example, "(2x245)ml" must match "2x245 ml"
+      // and vice versa. Multiple token conditions are ANDed by PostgREST.
+      // A token may match any searchable column.
+      const tokens = search.match(/[\p{L}\p{N}]+/gu)?.slice(0, 20) || [];
+      for (const token of tokens) {
+        const like = `%${token}%`;
+        query = query.or(`name.ilike.${like},barcode.ilike.${like},brand.ilike.${like},category.ilike.${like}`);
+      }
+    }
+    const from = (page - 1) * pageSize;
+    const { data, error, count } = await query
+      .order('updated_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, from + pageSize - 1);
     if (error) throw error;
-    targets = data || [];
+    products = (data || []).map((row: any) => {
+      const { matching_targets, ...product } = row;
+      return product;
+    });
+    total = count || 0;
+  }
+
+  const productIds = products.map((p: any) => p.id);
+  const targets: any[] = [];
+  if (productIds.length) {
+    // Max 50 products, but their combined mappings may exceed the 1,000-row limit.
+    const batchSize = 500;
+    for (let offset = 0; ; offset += batchSize) {
+      const { data, error } = await supabase.from('enlistment_targets')
+        .select('*').in('enlistment_id', productIds)
+        .order('id', { ascending: true }).range(offset, offset + batchSize - 1);
+      if (error) throw error;
+      targets.push(...(data || []));
+      if ((data || []).length < batchSize) break;
+    }
   }
 
   const accountById = new Map((accounts || []).map((a: any) => [a.id, a]));
@@ -42,7 +104,8 @@ export async function getEnlistmentPanelData() {
 
   return {
     accounts: accounts || [],
-    products: (products || []).map((product: any) => ({ ...product, targets: targetsByProduct.get(product.id) || [] })),
+    products: products.map((product: any) => ({ ...product, targets: targetsByProduct.get(product.id) || [] })),
+    pagination: { page, pageSize, total, pages: Math.max(1, Math.ceil(total / pageSize)) },
     imports: imports || [],
     exports: exportRows,
     statuses: ENLISTMENT_STATUSES,

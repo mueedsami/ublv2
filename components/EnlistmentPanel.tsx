@@ -44,6 +44,7 @@ type PanelData = {
   imports: any[];
   exports: any[];
   statuses: string[];
+  pagination: { page: number; pageSize: number; total: number; pages: number };
 };
 type Preview = {
   fileName: string;
@@ -76,53 +77,60 @@ function accountFormat(code: string) {
 
 export default function EnlistmentPanel() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const latestLoad = useRef(0);
+  const historyFileRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<PanelData | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [query, setQuery] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
   const [accountFilter, setAccountFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [openProductId, setOpenProductId] = useState<string | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [historyFile, setHistoryFile] = useState<File | null>(null);
+  const [historyPreview, setHistoryPreview] = useState<{fileName:string;products:number;accounts:{name:string;code:string}[];counts:Record<string,number>;warnings:string[]}|null>(null);
   const [bulkAccounts, setBulkAccounts] = useState<string[]>([]);
   const [exportAccount, setExportAccount] = useState('');
   const [exportType, setExportType] = useState<'xlsx'|'csv'>('xlsx');
 
-  async function load() {
+  async function load(nextPage = page, nextSearch = searchTerm, nextAccount = accountFilter, nextStatus = statusFilter) {
+    const requestId = ++latestLoad.current;
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/enlistment', { cache: 'no-store' });
+      const params = new URLSearchParams({ page: String(nextPage), search: nextSearch, account: nextAccount, status: nextStatus });
+      const res = await fetch(`/api/enlistment?${params}`, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load enlistment panel.');
+      if (requestId !== latestLoad.current) return;
       setData(json);
       if (!exportAccount && json.accounts?.length) setExportAccount(json.accounts[0].code);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load enlistment panel.');
-    } finally { setLoading(false); }
+      if (requestId === latestLoad.current) setError(e instanceof Error ? e.message : 'Failed to load enlistment panel.');
+    } finally { if (requestId === latestLoad.current) setLoading(false); }
   }
 
-  useEffect(() => { void load(); }, []);
+  // Debounce typed searches; every search and filter runs against the full database.
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchTerm(query.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+  useEffect(() => { setPage(1); }, [searchTerm]);
+  useEffect(() => { setChecked(new Set()); void load(page, searchTerm, accountFilter, statusFilter); }, [page, searchTerm, accountFilter, statusFilter]);
 
   const products = data?.products || [];
   const accounts = data?.accounts || [];
   const openProduct = products.find((p) => p.id === openProductId) || null;
 
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return products.filter((product) => {
-      if (needle && !`${product.name} ${product.barcode || ''} ${product.brand || ''} ${product.category || ''}`.toLowerCase().includes(needle)) return false;
-      const activeTargets = product.targets.filter((t) => t.selected);
-      if (accountFilter !== 'all' && !activeTargets.some((t) => t.account?.code === accountFilter)) return false;
-      if (statusFilter !== 'all' && !activeTargets.some((t) => t.status === statusFilter)) return false;
-      return true;
-    });
-  }, [products, query, accountFilter, statusFilter]);
-
+  // API already applied filters before paginating; each product includes all its account mappings.
+  const filtered = products;
+  const pagination = data?.pagination || { page, pageSize: 50, total: 0, pages: 1 };
   const selectedProducts = products.filter((p) => checked.has(p.id));
   const exportEligible = selectedProducts.filter((p) => p.targets.some((t) => t.selected && t.account?.code === exportAccount));
   const pendingCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && t.status !== 'enlisted').length, 0);
@@ -137,6 +145,25 @@ export default function EnlistmentPanel() {
     const attention = targets.filter((target) => ['needs_correction', 'rejected'].includes(target.status)).length;
     return { account, total: targets.length, enlisted, attention, pct: targets.length ? Math.round((enlisted / targets.length) * 100) : 0 };
   }).filter((row) => row.total > 0), [accounts, products]);
+
+  async function historicalImport(file: File, commit = false) {
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      if (commit) fd.append('confirmation','IMPORT HISTORICAL ENLISTMENTS');
+      const res = await fetch(`/api/enlistment/historical?mode=${commit ? 'commit' : 'preview'}`, {method:'POST',body:fd});
+      const json = await res.json();
+      if(!res.ok) throw new Error(json.error || 'Historical import failed.');
+      if(!commit) {setHistoryFile(file);setHistoryPreview(json);}
+      else {
+        const r=json.result;
+        setNotice(`Historical import: ${r.products} products, ${r.targetsCreated} account mappings added, ${r.targetsUpdated} updated, ${r.excluded} N/A mappings excluded. ${r.skipped} records skipped for review.`);
+        if(json.warnings?.length) setNotice(old=>`${old} ${json.warnings.length} warnings returned; review server logs or re-preview before making further changes.`);
+        setHistoryFile(null);setHistoryPreview(null);await load();
+      }
+    } catch(e) {setError(e instanceof Error ? e.message : 'Historical import failed.');}
+    finally {setBusy(false);}
+  }
 
   async function inspectFile(file: File) {
     setBusy(true); setError(''); setNotice(''); setPreview(null);
@@ -226,12 +253,28 @@ export default function EnlistmentPanel() {
       <div className="enlistment-head-actions">
         <input ref={fileRef} type="file" accept=".csv,.xlsx" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void inspectFile(f); }} />
         <button className="button" onClick={() => fileRef.current?.click()} disabled={busy}><Upload size={16}/>{busy ? 'Working…' : 'Upload enlistment file'}</button>
+        <input ref={historyFileRef} type="file" accept=".xlsx" hidden onChange={(e) => {const f=e.target.files?.[0];if(f)void historicalImport(f);e.target.value='';}}/>
+        <button className="button secondary" onClick={() => historyFileRef.current?.click()} disabled={busy}><FileSpreadsheet size={16}/>Historical Y/N Import</button>
         <button className="button secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16}/>Refresh</button>
       </div>
     </div>
 
     {error && <div className="alert error">{error}</div>}
     {notice && <div className="alert success">{notice}</div>}
+
+    {historyPreview && <section className="card enlistment-preview-card">
+      <div className="card-head"><div><span className="eyebrow">One-time historical backfill</span><h2>{historyPreview.fileName}</h2><p>Import existing account enlistment statuses without following the normal new-enlistment workflow.</p></div><button className="icon-button" onClick={() => {setHistoryPreview(null);setHistoryFile(null);}}><X size={18}/></button></div>
+      <div className="enlistment-preview-stats">
+        <div><strong>{historyPreview.products}</strong><span>Products</span></div>
+        <div><strong>{historyPreview.accounts.length}</strong><span>Platform columns</span></div>
+        <div><strong>{historyPreview.counts.Y || 0}</strong><span>Enlisted (Y)</span></div>
+        <div><strong>{historyPreview.counts.N || 0}</strong><span>Not enlisted (N)</span></div>
+        <div><strong>{historyPreview.counts['N/A'] || 0}</strong><span>Excluded (N/A)</span></div>
+      </div>
+      <p><strong>Y</strong> = enlisted; <strong>N</strong> = pending; <strong>N/A</strong> = no active account mapping; blank = untouched. Existing progressed tasks are protected. Historical-only platforms do not become active OLA/CPP accounts.</p>
+      {historyPreview.warnings.slice(0,10).map((warning,i)=><div className="alert warning" key={i}>{warning}</div>)}
+      <div className="enlistment-preview-actions"><button className="button" disabled={busy || !historyFile} onClick={() => {if(historyFile && window.confirm('Import historical enlistment statuses? This updates the selected product-account mappings.')) void historicalImport(historyFile,true);}}><PackagePlus size={16}/>Confirm one-time backfill</button><span>Preview counts before importing. Do not re-import this historical file after editing live statuses.</span></div>
+    </section>}
 
     {preview && <section className="card enlistment-preview-card">
       <div className="card-head"><div><span className="eyebrow">Import preview</span><h2>{preview.fileName}</h2><p>{preview.rowsTotal} product rows detected. Source platform columns will not assign accounts or statuses.</p></div><button className="icon-button" onClick={() => { setPreview(null); setPendingFile(null); }}><X size={18}/></button></div>
@@ -242,12 +285,12 @@ export default function EnlistmentPanel() {
     </section>}
 
     <section className="enlistment-summary-card">
-      <div className="enlistment-summary-copy"><span className="eyebrow">Workflow health</span><h2>{completionPct}% of selected account tasks are enlisted</h2><p>The panel tracks every product-account combination independently. <strong>{pendingCount}</strong> task{pendingCount===1?' is':'s are'} still in progress and <strong>{unassignedCount}</strong> product{unassignedCount===1?' has':'s have'} no target account yet.</p><div className="enlistment-summary-progress"><span style={{ width: `${completionPct}%` }}/></div></div>
-      <div className="enlistment-summary-stats"><div><span>Products</span><strong>{products.length}</strong></div><div><span>Account tasks</span><strong>{selectedTaskCount}</strong></div><div><span>Enlisted</span><strong>{enlistedCount}</strong></div><div className={attentionCount ? 'attention' : ''}><span>Needs attention</span><strong>{attentionCount}</strong></div></div>
+      <div className="enlistment-summary-copy"><span className="eyebrow">Workflow health</span><h2>{completionPct}% of account tasks on this page are enlisted</h2><p>The panel tracks every product-account combination independently. <strong>{pendingCount}</strong> task{pendingCount===1?' is':'s are'} still in progress and <strong>{unassignedCount}</strong> product{unassignedCount===1?' has':'s have'} no target account yet.</p><div className="enlistment-summary-progress"><span style={{ width: `${completionPct}%` }}/></div></div>
+      <div className="enlistment-summary-stats"><div><span>Products on page</span><strong>{products.length}</strong></div><div><span>Account tasks</span><strong>{selectedTaskCount}</strong></div><div><span>Enlisted</span><strong>{enlistedCount}</strong></div><div className={attentionCount ? 'attention' : ''}><span>Needs attention</span><strong>{attentionCount}</strong></div></div>
     </section>
 
     {accountProgress.length ? <section className="card enlistment-account-progress-card">
-      <div className="card-head"><div><h2>Account progress</h2><p>A quick view of how far each marketplace has moved from selected to enlisted.</p></div></div>
+      <div className="card-head"><div><h2>Account progress — current page</h2><p>Progress for products shown on this page. Use filters to view other products.</p></div></div>
       <div className="enlistment-account-progress-grid">{accountProgress.map(({ account, total, enlisted, attention, pct }) => <button type="button" key={account.code} onClick={() => setAccountFilter(account.code)}>
         <div className="enlistment-account-progress-top"><div><strong>{account.name}</strong><span>{accountFormat(account.code)}</span></div><b>{pct}%</b></div>
         <div className="enlistment-account-progress-track"><span style={{ width: `${pct}%` }}/></div>
@@ -256,11 +299,11 @@ export default function EnlistmentPanel() {
     </section> : null}
 
     <section className="card enlistment-filter-card">
-      <div className="enlistment-workbench-head"><div><span className="eyebrow">Product workbench</span><strong>{filtered.length} of {products.length} products shown</strong></div><button type="button" className="account-reset-button" onClick={() => { setQuery(''); setAccountFilter('all'); setStatusFilter('all'); }}><RotateCcw size={14}/>Reset filters</button></div>
+      <div className="enlistment-workbench-head"><div><span className="eyebrow">Product workbench</span><strong>{pagination.total} matching products · {products.length} on this page</strong></div><button type="button" className="account-reset-button" onClick={() => { setPage(1); setQuery(''); setSearchTerm(''); setAccountFilter('all'); setStatusFilter('all'); }}><RotateCcw size={14}/>Reset filters</button></div>
       <div className="enlistment-filter-row">
         <label className="enlistment-search"><span>Search</span><div className="search-box"><Search size={16}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Product, barcode, brand or category"/></div></label>
-        <label><span>Target account</span><select value={accountFilter} onChange={(e) => setAccountFilter(e.target.value)}><option value="all">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.code}>{a.name}</option>)}</select></label>
-        <label><span>Status</span><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="all">All statuses</option>{(data?.statuses || []).map((s) => <option key={s} value={s}>{statusLabels[s] || s}</option>)}</select></label>
+        <label><span>Target account</span><select value={accountFilter} onChange={(e) => { setPage(1); setAccountFilter(e.target.value); }}><option value="all">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.code}>{a.name}</option>)}</select></label>
+        <label><span>Status</span><select value={statusFilter} onChange={(e) => { setPage(1); setStatusFilter(e.target.value); }}><option value="all">All statuses</option>{(data?.statuses || []).map((s) => <option key={s} value={s}>{statusLabels[s] || s}</option>)}</select></label>
       </div>
     </section>
 
@@ -279,7 +322,7 @@ export default function EnlistmentPanel() {
 
     <section className="card enlistment-master-card">
       <div className="card-head"><div><h2>Enlistment master</h2><p>Target accounts are chosen manually. Open a product to manage marketplace-specific progress and Daraz fields.</p></div>{checked.size ? <span className="enlistment-selection-chip">{checked.size} selected</span> : null}</div>
-      {loading ? <div className="empty">Loading enlistments…</div> : !products.length ? <div className="empty"><PackagePlus size={28}/><strong>No enlistments yet</strong><span>Upload your UBL product enlistment CSV or XLSX to start.</span></div> : <div className="table-wrap"><table className="enlistment-table enlistment-table-polished"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every((p) => checked.has(p.id))} onChange={(e) => setChecked((old) => { const next = new Set(old); filtered.forEach((p) => e.target.checked ? next.add(p.id) : next.delete(p.id)); return next; })}/></th><th>Product</th><th>Barcode</th><th>Commercial</th><th>Account progress</th><th>Updated</th><th></th></tr></thead><tbody>
+      {loading ? <div className="empty">Loading enlistments…</div> : !products.length ? <div className="empty"><PackagePlus size={28}/><strong>{pagination.total === 0 && (searchTerm || accountFilter !== 'all' || statusFilter !== 'all') ? 'No matching products' : 'No enlistments yet'}</strong><span>{pagination.total === 0 && (searchTerm || accountFilter !== 'all' || statusFilter !== 'all') ? 'Try another search or reset filters.' : 'Upload your UBL product enlistment CSV or XLSX to start.'}</span></div> : <div className="table-wrap"><table className="enlistment-table enlistment-table-polished"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every((p) => checked.has(p.id))} onChange={(e) => setChecked((old) => { const next = new Set(old); filtered.forEach((p) => e.target.checked ? next.add(p.id) : next.delete(p.id)); return next; })}/></th><th>Product</th><th>Barcode</th><th>Commercial</th><th>Account progress</th><th>Updated</th><th></th></tr></thead><tbody>
         {filtered.map((product) => { const activeTargets = product.targets.filter((t) => t.selected); const productEnlisted = activeTargets.filter((t) => t.status === 'enlisted').length; const progress = activeTargets.length ? Math.round((productEnlisted / activeTargets.length) * 100) : 0; const hasAttention = activeTargets.some((t) => ['needs_correction', 'rejected'].includes(t.status)); return <tr key={product.id} className={openProductId === product.id ? 'active-row' : ''}>
           <td><input type="checkbox" checked={checked.has(product.id)} onChange={() => toggleCheck(product.id)}/></td>
           <td><div className="enlistment-product-cell"><span className="enlistment-product-mark">{(product.brand || product.name || 'P').slice(0,1).toUpperCase()}</span><div><strong>{product.name}</strong><small>{product.brand || '—'} · {product.category || '—'}</small></div></div></td>
@@ -291,6 +334,15 @@ export default function EnlistmentPanel() {
         </tr>; })}
       </tbody></table></div>}
     </section>
+
+    <div className="card" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',marginTop:12,padding:16}}>
+      <span>Showing {pagination.total ? (pagination.page - 1) * pagination.pageSize + 1 : 0}–{Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} products</span>
+      <div style={{display:'flex',alignItems:'center',gap:12}}>
+        <button type="button" className="button secondary compact" disabled={loading || page <= 1} onClick={() => setPage((p) => Math.max(1,p-1))}>Previous</button>
+        <strong>Page {pagination.page} of {pagination.pages}</strong>
+        <button type="button" className="button secondary compact" disabled={loading || page >= pagination.pages} onClick={() => setPage((p) => p+1)}>Next</button>
+      </div>
+    </div>
 
     {openProduct && <ProductDrawer product={openProduct} accounts={accounts} statuses={data?.statuses || []} busy={busy} onClose={() => setOpenProductId(null)} onSetAccounts={setAccounts} onUpdateTarget={updateTarget}/>} 
 
