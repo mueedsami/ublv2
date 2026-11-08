@@ -1,5 +1,2 @@
-import DashboardReport from '@/components/DashboardReport';
-
-export default function DashboardReportPage() {
-  return <DashboardReport />;
-}
+import TertiaryUploadCenter from '@/components/TertiaryUploadCenter';
+export default function TertiaryReportPage(){return <TertiaryUploadCenter/>;}

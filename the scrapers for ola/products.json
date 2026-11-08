@@ -1,0 +1,3311 @@
+[
+  {
+    "id": 464,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Dove Intense Repair Shampoo (330ml)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 5,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-intense-repair-shampoo-330ml_98.webp",
+    "slug": "dove-intense-repair-shampoo",
+    "has_discount": false,
+    "stroked_price": 1000,
+    "main_price": 1000,
+    "discount_end_time": "11-08-2026 23:59:59",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 2099,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      },
+      {
+        "name": "Body Lotion",
+        "slug": "body-lotion"
+      }
+    ],
+    "name": "Vaseline Intensive Care Aloe Soothe Body Lotion (200ml)",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 6,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-intensive-care-aloe-soothe-body-lotion-200ml_44.webp",
+    "slug": "vaseline-intensive-care-aloe-soothe-body-lotion-200ml",
+    "has_discount": true,
+    "stroked_price": 800,
+    "main_price": 778,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 5552,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Hair Serum",
+        "slug": "hair-serum"
+      }
+    ],
+    "name": "Tresemme Keratin Smooth Anti-Frizz Hair Serum With Argan oil (50ml)",
+    "brand": "TRESEMME",
+    "brand_slug": "tresemme",
+    "qty": 44,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/tresemme-keratin-smooth-anti-frizz-hair-serum-with-argan-oil-50ml-1_78.webp",
+    "slug": "tresemme-keratin-smooth-anti-frizz-hair-serum-with-argan-oil-50ml",
+    "has_discount": false,
+    "stroked_price": 1000,
+    "main_price": 1000,
+    "discount_end_time": "31-10-2026 23:59:59",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 5998,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Tresemme keratin smooth shampoo (340ml)",
+    "brand": "TRESEMME",
+    "brand_slug": "tresemme",
+    "qty": 17,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/tresemme-keratin-smooth-shampoo_36.webp",
+    "slug": "tresemme-keratin-smooth-shampoo-340ml",
+    "has_discount": false,
+    "stroked_price": 1200,
+    "main_price": 1200,
+    "discount_end_time": "31-10-2026 23:59:59",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9163,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Pond’s Vanishing Cream Oil Control System Bd Variant (50gm)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 4,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-vanishing-cream-1_54.webp",
+    "slug": "ponds-vanishing-cream-oil-control-system-50gm",
+    "has_discount": true,
+    "stroked_price": 120,
+    "main_price": 105,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9166,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "TRESemmé Botanique Nourish & Replenish Shampoo Bd Variant (580ml)",
+    "brand": "TRESEMME",
+    "brand_slug": "tresemme",
+    "qty": 12,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/tresemm-shampoo-botanique-nourish-and-replenishvanishing-cream_16.webp",
+    "slug": "tresemme-botanique-nourish-replenish-shampoo-580ml",
+    "has_discount": true,
+    "stroked_price": 850,
+    "main_price": 750,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9167,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Face Wash",
+        "slug": "face-wash"
+      }
+    ],
+    "name": "Ponds Daily Face Wash (50gm)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 6,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-daily-face-wash-50gm-1_10.webp",
+    "slug": "ponds-daily-face-wash-50gm",
+    "has_discount": true,
+    "stroked_price": 90,
+    "main_price": 85,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9170,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Face Wash",
+        "slug": "face-wash"
+      }
+    ],
+    "name": "Pond's Face Wash Oil Control Bd Variant (50gm)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 7,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-face-wash-oil-control-50gm-1_46.webp",
+    "slug": "ponds-face-wash-oil-control-50gm",
+    "has_discount": true,
+    "stroked_price": 120,
+    "main_price": 110,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9172,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      },
+      {
+        "name": "Body Lotion",
+        "slug": "body-lotion"
+      }
+    ],
+    "name": "Pond's Moisturising Body Lotion (100ml)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 12,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-moisturising-body-lotion-100ml_49.webp",
+    "slug": "ponds-moisturising-body-lotion-100ml",
+    "has_discount": true,
+    "stroked_price": 160,
+    "main_price": 150,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9173,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Men's Care",
+        "slug": "mens-care"
+      },
+      {
+        "name": "Men's Skincare",
+        "slug": "mens-skin-care"
+      },
+      {
+        "name": "Face Wash",
+        "slug": "mens-face-wash"
+      }
+    ],
+    "name": "Fair& Lovely Glow & Handsome Men’s Facewash Bd Variant (100gm)",
+    "brand": "Fair& Lovely",
+    "brand_slug": "fair-lovely",
+    "qty": 4,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/glow--handsome-mens-facewash-100gm_45.webp",
+    "slug": "fair-lovely-glow-handsome-mens-facewash-100gm",
+    "has_discount": true,
+    "stroked_price": 190,
+    "main_price": 153,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9174,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Face Wash",
+        "slug": "face-wash"
+      }
+    ],
+    "name": "Pond's Oil Control Glow Gel Facewash Bd Variant (100gm)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-oil-control-glow-gel-facewash-100gm_56.webp",
+    "slug": "ponds-oil-control-glow-gel-facewash-100gm",
+    "has_discount": true,
+    "stroked_price": 210,
+    "main_price": 200,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9175,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Men's Care",
+        "slug": "mens-care"
+      },
+      {
+        "name": "Men's Skincare",
+        "slug": "mens-skin-care"
+      },
+      {
+        "name": "Face Wash",
+        "slug": "mens-face-wash"
+      }
+    ],
+    "name": "Fair& Lovely Glow & Handsome Men’s Facewash Bd Variant (50gm)",
+    "brand": "Fair& Lovely",
+    "brand_slug": "fair-lovely",
+    "qty": 14,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-oil-control-glow-gel-facewash-100gm-1-1_38.webp",
+    "slug": "fair-lovely-glow-handsome-mens-facewash-50gm",
+    "has_discount": false,
+    "stroked_price": 140,
+    "main_price": 140,
+    "discount_end_time": "31-10-2026 09:15:00",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9176,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Sun Protection",
+        "slug": "sunscreen-cream"
+      },
+      {
+        "name": "Face Sunscreen",
+        "slug": "face-sunscreen"
+      }
+    ],
+    "name": "Glow & Lovely Bright Serum Sunscreen UV DUO SPF50 (50gm)",
+    "brand": "Glow & Lovely",
+    "brand_slug": "glow-lovely",
+    "qty": 7,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/glow--lovely-bright-serum-sunscreen-uv-duo-spf50-50gm_10.webp",
+    "slug": "glow-lovely-bright-serum-sunscreen-uv-duo-spf50-50gm",
+    "has_discount": true,
+    "stroked_price": 300,
+    "main_price": 228,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9182,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Moisturizers",
+        "slug": "moisturizer"
+      },
+      {
+        "name": "Moisturizing Cream",
+        "slug": "moisturizer-cream"
+      }
+    ],
+    "name": "Glow & Lovely Ayurvedic Care Face Cream Bd Variant (50gm)",
+    "brand": "Glow & Lovely",
+    "brand_slug": "glow-lovely",
+    "qty": 1,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/glow--lovely-ayurvedic-care-face-cream-50gm_93.webp",
+    "slug": "glow-lovely-ayurvedic-care-face-cream-50gm",
+    "has_discount": true,
+    "stroked_price": 195,
+    "main_price": 180,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9183,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Sun Protection",
+        "slug": "sunscreen-cream"
+      },
+      {
+        "name": "Face Sunscreen",
+        "slug": "face-sunscreen"
+      }
+    ],
+    "name": "Glow & Lovely Bright Serum Sunscreen UV DUO SPF50 Bd Variant (25gm)",
+    "brand": "Glow & Lovely",
+    "brand_slug": "glow-lovely",
+    "qty": 7,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/glow--lovely-bright-serum-sunscreen-uv-duo-spf50-50gm_10.webp",
+    "slug": "glow-lovely-bright-serum-sunscreen-uv-duo-spf50-25gm",
+    "has_discount": true,
+    "stroked_price": 160,
+    "main_price": 126,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9185,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Face Wash",
+        "slug": "face-wash"
+      }
+    ],
+    "name": "Glow & Lovely Bright Glow Facewash Bd Variant (100gm)",
+    "brand": "Glow & Lovely",
+    "brand_slug": "glow-lovely",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/glow--lovely-bright-glow-facewash-100gm_35.webp",
+    "slug": "glow-lovely-bright-glow-facewash-100gm",
+    "has_discount": true,
+    "stroked_price": 170,
+    "main_price": 137,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9186,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Face Wash",
+        "slug": "face-wash"
+      }
+    ],
+    "name": "Glow & Lovely Bright Glow Facewash Bd Variant (50gm)",
+    "brand": "Glow & Lovely",
+    "brand_slug": "glow-lovely",
+    "qty": 13,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/glow--lovely-bright-glow-facewash-25gm_14.webp",
+    "slug": "glow-lovely-bright-glow-facewash-50gm",
+    "has_discount": true,
+    "stroked_price": 85,
+    "main_price": 75,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9187,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Moisturizers",
+        "slug": "moisturizer"
+      },
+      {
+        "name": "Moisturizing Cream",
+        "slug": "moisturizer-cream"
+      }
+    ],
+    "name": "Glow & Lovely Ayurvedic Care Face Cream Bd Variant (25gm)",
+    "brand": "Glow & Lovely",
+    "brand_slug": "glow-lovely",
+    "qty": 7,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/glow--lovely-ayurvedic-care-face-cream-25gm_83.webp",
+    "slug": "glow-lovely-ayurvedic-care-face-cream-25gm",
+    "has_discount": true,
+    "stroked_price": 105,
+    "main_price": 94,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9188,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Men's Care",
+        "slug": "mens-care"
+      },
+      {
+        "name": "Men's Skincare",
+        "slug": "mens-skin-care"
+      },
+      {
+        "name": "Moisturizer",
+        "slug": "mens-moisturizer"
+      }
+    ],
+    "name": "Fair & Lovely Glow & Handsome Instant Brightness Repaid Cream Bd Variant (25gm)",
+    "brand": "Fair& Lovely",
+    "brand_slug": "fair-lovely",
+    "qty": 7,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/fair--lovely-glow--handsome-instant-brightness-cream---25-3_11.webp",
+    "slug": "fair-lovely-glow-handsome-instant-brightness-repaid-cream-25gm",
+    "has_discount": true,
+    "stroked_price": 110,
+    "main_price": 98,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9193,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Moisturizers",
+        "slug": "moisturizer"
+      },
+      {
+        "name": "Moisturizing Cream",
+        "slug": "moisturizer-cream"
+      }
+    ],
+    "name": "Fair & Lovely Glow & Handsome Instant Brightness Repaid Cream Bd Variant (50gm)",
+    "brand": "Fair& Lovely",
+    "brand_slug": "fair-lovely",
+    "qty": 2,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/fair--lovely-glow--handsome-instant-brightness-cream---25-311_94.webp",
+    "slug": "fair-lovely-glow-handsome-instant-brightness-repaid-cream-50gm",
+    "has_discount": true,
+    "stroked_price": 170,
+    "main_price": 151,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9194,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "TRESemmé Bond Plex Sleek Shampoo Bd Variant (580ml)",
+    "brand": "TRESEMME",
+    "brand_slug": "tresemme",
+    "qty": 4,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/tresemme-shampoo-bond-plex-sleek-580ml_27.webp",
+    "slug": "tresemme-bond-plex-sleek-shampoo-580ml",
+    "has_discount": true,
+    "stroked_price": 850,
+    "main_price": 538,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9196,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Cleansing Bars",
+        "slug": "cleansing-bars"
+      }
+    ],
+    "name": "Dove Beauty Bar Soap White Bd Variant (50gm)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 1,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-beauty-bar-soap-white-50-gm_64.webp",
+    "slug": "dove-beauty-bar-soap-white-50gm",
+    "has_discount": true,
+    "stroked_price": 70,
+    "main_price": 65,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9197,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Cleansing Bars",
+        "slug": "cleansing-bars"
+      }
+    ],
+    "name": "Dove Beauty Bar Soap White Bd Variant (90gm)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 4,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-beauty-bar-soap-white-90gm_41.webp",
+    "slug": "dove-beauty-bar-soap-white-90gm",
+    "has_discount": true,
+    "stroked_price": 120,
+    "main_price": 110,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9198,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Cleansing Bars",
+        "slug": "cleansing-bars"
+      }
+    ],
+    "name": "Dove Beauty Bar Soap White Bd Variant (135gm)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 6,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/135gm_34.webp",
+    "slug": "dove-beauty-bar-soap-white-135gm",
+    "has_discount": true,
+    "stroked_price": 160,
+    "main_price": 133,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9210,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Pond’s Bright Beauty Niasorcinol Beauty Light Cream Bd Variant (35gm)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-bright-beauty-light-cream-with--5_27.webp",
+    "slug": "ponds-bright-beauty-niasorcinol-beauty-light-cream-35gm",
+    "has_discount": true,
+    "stroked_price": 280,
+    "main_price": 226,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9211,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Pond’s Youthful Miracle Day Cream Bd Variant (50gm)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 9,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-youthful-miracle-day-cream-50g_47.webp",
+    "slug": "ponds-youthful-miracle-day-cream-50gm",
+    "has_discount": true,
+    "stroked_price": 1050,
+    "main_price": 842,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9212,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Pond’s Bright Beauty Serum Day Cream Bd Variant (23gm)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 6,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-bright-beauty-serum-day-cream---23gm-indian_78.webp",
+    "slug": "ponds-bright-beauty-serum-day-cream-23gm",
+    "has_discount": true,
+    "stroked_price": 175,
+    "main_price": 134,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9215,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      }
+    ],
+    "name": "Vaseline Gluta Hya Flawless Glow Serum in Lotion Bd Variant (70ml)",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 39,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-non-sticky-gluta-hya-flawless-glow-serum-in-lotion-70ml-3_78.webp",
+    "slug": "vaseline-gluta-hya-flawless-glow-serum-in-lotion-bd-variant-70ml",
+    "has_discount": true,
+    "stroked_price": 280,
+    "main_price": 218,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9216,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      }
+    ],
+    "name": "Vaseline Gluta Hya Flawless Glow Serum in Lotion (200ml)",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 15,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/al-haramain-8-1.webp",
+    "slug": "vaseline-gluta-hya-flawless-glow-serum-in-lotion-20ml",
+    "has_discount": true,
+    "stroked_price": 725,
+    "main_price": 569,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9217,
+    "is_best_sell": true,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      }
+    ],
+    "name": "Vaseline Gluta Hya Dewy Radiance Serum in Lotion Bd Variant (200ml)",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 5,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/al-haramain-7.webp",
+    "slug": "vaseline-gluta-hya-dewy-radiance-serum-in-lotion-bd-variant-200ml",
+    "has_discount": true,
+    "stroked_price": 700,
+    "main_price": 549,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9218,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      }
+    ],
+    "name": "Vaseline Gluta Hya Dewy Radiance Serum in Lotion Bd Variant (70ml)",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 8,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-gluta-hya-dewy-radiance-serum-in-lotion-200ml-5_99.webp",
+    "slug": "vaseline-gluta-hya-dewy-radiance-serum-in-lotion-bd-variant-70ml",
+    "has_discount": true,
+    "stroked_price": 280,
+    "main_price": 218,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9224,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Men's Care",
+        "slug": "mens-care"
+      },
+      {
+        "name": "Men's Hair Care",
+        "slug": "mens-hair-care"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "mens-shampoo"
+      }
+    ],
+    "name": "Clear Men Shampoo Cool Sport Menthol Anti Dandruff Bd Variant (330ml)",
+    "brand": "CLEAR",
+    "brand_slug": "clear",
+    "qty": 1,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/clear-men-shampoo-cool-sport-menthol-anti-dandruff-330ml-1_37.webp",
+    "slug": "clear-men-shampoo-cool-sport-menthol-anti-dandruff-330ml",
+    "has_discount": true,
+    "stroked_price": 500,
+    "main_price": 490,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9233,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Clear Anti Dandruff Anti Hair fall Shampoo Bd Variant (330ml)",
+    "brand": "CLEAR",
+    "brand_slug": "clear",
+    "qty": 8,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/clear-anti-dandruff-anti-hair-fall-shampoo-330ml_55.webp",
+    "slug": "clear-anti-dandruff-anti-hair-fall-shampoo-bd-variant-330ml",
+    "has_discount": true,
+    "stroked_price": 400,
+    "main_price": 335,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9234,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Dove Intense Repair Nourishing Shampoo For Damage Hair Bd Variant (650ml)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-intense-repair-nourishing-shampoo-for-damage-hair-650ml_32.webp",
+    "slug": "dove-intense-repair-nourishing-shampoo-for-damage-hair-bd-variant-650ml",
+    "has_discount": true,
+    "stroked_price": 740,
+    "main_price": 531,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9236,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      }
+    ],
+    "name": "Lux Body Wash Brightening Vitamin C #Orange Blossom Bd Variant (245ml)",
+    "brand": "Lux",
+    "brand_slug": "lux",
+    "qty": 65,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-intense-repair-nourishing-shampoo-for-damage-hair-650ml-1_27.webp",
+    "slug": "lux-body-wash-brightening-vitamin-c-orange-blossom-bd-variant-245ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 145,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9240,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      }
+    ],
+    "name": "Tresemme Keratin Smooth Hair Mask Bd Variant (300ml)",
+    "brand": "TRESEMME",
+    "brand_slug": "tresemme",
+    "qty": 1,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/tresemme-keratin-smooth-hair-mask-300mlskin-ultime-collection-perfect-radiance-day-cream-50-gm_90.webp",
+    "slug": "tresemme-keratin-smooth-hair-mask-300ml",
+    "has_discount": true,
+    "stroked_price": 1000,
+    "main_price": 598,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9241,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Sun Protection",
+        "slug": "sunscreen-cream"
+      },
+      {
+        "name": "Face Sunscreen",
+        "slug": "face-sunscreen"
+      }
+    ],
+    "name": "Pond's Sun Miracle Cream Gel Sunscreen (100gm)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 4,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-sun-miracle-cream-gel-sunscreen-100gm_26.webp",
+    "slug": "ponds-sun-miracle-cream-gel-sunscreen-100gm",
+    "has_discount": true,
+    "stroked_price": 1250,
+    "main_price": 999,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9245,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Men's Care",
+        "slug": "mens-care"
+      },
+      {
+        "name": "Men's Hair Care",
+        "slug": "mens-hair-care"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "mens-shampoo"
+      }
+    ],
+    "name": "Clear Men Cool Sport Menthol Anti Dandruff Shampoo Bd Variant (450ml)",
+    "brand": "CLEAR",
+    "brand_slug": "clear",
+    "qty": 5,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/clear-men-cool-sport-menthol-anti-dandruff-shampoo-450ml_45.webp",
+    "slug": "clear-men-cool-sport-menthol-anti-dandruff-shampoo-bd-variant-450ml",
+    "has_discount": false,
+    "stroked_price": 600,
+    "main_price": 600,
+    "discount_end_time": "31-10-2026 23:59:59",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9246,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Coconut Water & Aloe Vera Volume Shampoo Bd Variant (375ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 1,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/clear-men-cool-sport-menthol-anti-dandruff-shampoo-450ml-1_56.webp",
+    "slug": "sunsilk-coconut-water-aloe-vera-volume-shampoo-bd-variant-375ml",
+    "has_discount": true,
+    "stroked_price": 420,
+    "main_price": 369,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9247,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Cleansing Bars",
+        "slug": "cleansing-bars"
+      }
+    ],
+    "name": "Lux Bright Glow Soap Bar Bd Variant (90gm)",
+    "brand": "Lux",
+    "brand_slug": "lux",
+    "qty": 26,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lux-bright-glow-soap-bar-90gm-1_50.webp",
+    "slug": "lux-bright-glow-soap-bar-90gm",
+    "has_discount": true,
+    "stroked_price": 60,
+    "main_price": 58,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9248,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Cleansing Bars",
+        "slug": "cleansing-bars"
+      }
+    ],
+    "name": "Lux Bright Glow Soap Bar Bd Variant (150gm)",
+    "brand": "Lux",
+    "brand_slug": "lux",
+    "qty": 15,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lux-bright-glow-soap-bar-150gm_12.webp",
+    "slug": "lux-bright-glow-soap-bar-bd-variant-150gm",
+    "has_discount": true,
+    "stroked_price": 90,
+    "main_price": 85,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9250,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Men's Care",
+        "slug": "mens-care"
+      },
+      {
+        "name": "Men's Hair Care",
+        "slug": "mens-hair-care"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "mens-shampoo"
+      }
+    ],
+    "name": "Clear Men Shampoo Cool Sport Menthol Anti Dandruff Bd Variant (80ml)",
+    "brand": "CLEAR",
+    "brand_slug": "clear",
+    "qty": 10,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/clear-men-shampoo-cool-sport-menthol-anti-dandruff-80ml_67.webp",
+    "slug": "clear-men-shampoo-cool-sport-menthol-anti-dandruff-80ml",
+    "has_discount": true,
+    "stroked_price": 120,
+    "main_price": 115,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9251,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Dove Intense Repair Shampoo Bd Variant (170ml)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 2,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-bright-beauty-light-cream-with-uv-filter-niasorcinol-1_89.webp",
+    "slug": "dove-intense-repair-shampoo-bd-variant-170ml",
+    "has_discount": false,
+    "stroked_price": 200,
+    "main_price": 200,
+    "discount_end_time": "31-10-2026 09:15:00",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9252,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Men's Care",
+        "slug": "mens-care"
+      },
+      {
+        "name": "Men's Hair Care",
+        "slug": "mens-hair-care"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "mens-shampoo"
+      }
+    ],
+    "name": "Clear Men Shampoo Cool Sport Menthol Anti Dandruff Bd Variant (170ml)",
+    "brand": "CLEAR",
+    "brand_slug": "clear",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/clear-men-shampoo-cool-sport-menthol-anti-dandruff-170ml-1_64.webp",
+    "slug": "clear-men-shampoo-cool-sport-menthol-anti-dandruff-170ml",
+    "has_discount": true,
+    "stroked_price": 270,
+    "main_price": 242,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9253,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Dove Hairfall Rescue Shampoo Bd Variant (450ml)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 6,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-shampoo-hairfall-rescue-450ml_58.webp",
+    "slug": "dove-hairfall-rescue-shampoo-450ml",
+    "has_discount": false,
+    "stroked_price": 580,
+    "main_price": 580,
+    "discount_end_time": "31-10-2026 09:15:00",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9254,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Dove Hairfall Rescue Shampoo Bd Variant (170ml)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 11,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-shampoo-hairfall-rescue-170ml-_74.webp",
+    "slug": "dove-hairfall-rescue-shampoo-170ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 180,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9255,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Dove Oxygen Moisture Nourishing Shampoo Bd Variant (330ml)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 6,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-oxygen-moisture-nourishing-shampoo-330ml_48.webp",
+    "slug": "dove-oxygen-moisture-nourishing-shampoo-330ml",
+    "has_discount": true,
+    "stroked_price": 440,
+    "main_price": 349,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9257,
+    "is_best_sell": true,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Hair Mask",
+        "slug": "hair-cream"
+      }
+    ],
+    "name": "Dove 10 in 1 Deep Repair Treatment Hair Mask Bd Variant (300ml)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 21,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-10-in-1-deep-repair-treatment-hair-mask-300ml_56.webp",
+    "slug": "dove-10-in-1-deep-repair-treatment-hair-mask-bd-variant-300ml",
+    "has_discount": true,
+    "stroked_price": 1000,
+    "main_price": 649,
+    "discount_end_time": "31-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9258,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Conditioner",
+        "slug": "conditioner"
+      }
+    ],
+    "name": "TRESemmé Keratin Smooth Conditioner Bd Variant (190ml)",
+    "brand": "TRESEMME",
+    "brand_slug": "tresemme",
+    "qty": 8,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-nutritive-solutions-nourishing-oil-care-shampoo-1_87.webp",
+    "slug": "tresemme-keratin-smooth-conditioner-190ml",
+    "has_discount": true,
+    "stroked_price": 320,
+    "main_price": 242,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9260,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "TRESemmé Keratin Smooth Shampoo Bd Variant (185ml)",
+    "brand": "TRESEMME",
+    "brand_slug": "tresemme",
+    "qty": 5,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/tresemme-shampoo-keratin-smooth-185ml-2_17.webp",
+    "slug": "tresemme-keratin-smooth-shampoo-185ml",
+    "has_discount": false,
+    "stroked_price": 350,
+    "main_price": 350,
+    "discount_end_time": "31-10-2026 09:15:00",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9261,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      }
+    ],
+    "name": "Lux French Rose And Almond Body Wash Bd Variant (245ml)",
+    "brand": "Lux",
+    "brand_slug": "lux",
+    "qty": 40,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lux-french-rose-and-almond-body-wash-245ml_60.webp",
+    "slug": "lux-french-rose-and-almond-body-wash-245ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 145,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9262,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "TRESemmé Color Revitalise Shampoo Bd Variant (580ml)",
+    "brand": "TRESEMME",
+    "brand_slug": "tresemme",
+    "qty": 8,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/tresemme-shampoo-color-revitalise-580ml_81.webp",
+    "slug": "tresemme-color-revitalise-shampoo-580ml",
+    "has_discount": true,
+    "stroked_price": 850,
+    "main_price": 546,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9263,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      }
+    ],
+    "name": "Lux Freesia Scent & Aloe Vera Body Wash Bd Variant (245ml)",
+    "brand": "Lux",
+    "brand_slug": "lux",
+    "qty": 61,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lux-freesia-scent--aloe-vera-body-wash-245ml_35.webp",
+    "slug": "lux-freesia-scent-aloe-vera-body-wash-245ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 145,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9264,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "TRESemmé Hair Fall Defense Shampoo Bd Variant (580ml)",
+    "brand": "TRESEMME",
+    "brand_slug": "tresemme",
+    "qty": 9,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/tresemme-shampoo-hair-fall-defense-580ml-1_31.webp",
+    "slug": "tresemme-hair-fall-defense-shampoo-bd-variant-580ml",
+    "has_discount": true,
+    "stroked_price": 850,
+    "main_price": 538,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9266,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Onion & Jojoba Oil Hair Fall Shampoo Bd Variant (375ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 1,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-onion--jojoba-oil-hair-fall-shampoo-375ml_71.webp",
+    "slug": "sunsilk-onion-jojoba-oil-hair-fall-shampoo-bd-variant-375ml",
+    "has_discount": true,
+    "stroked_price": 420,
+    "main_price": 369,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9389,
+    "is_best_sell": true,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Moisturizers",
+        "slug": "moisturizer"
+      },
+      {
+        "name": "Moisturizing Cream",
+        "slug": "moisturizer-cream"
+      }
+    ],
+    "name": "Pond's Super Light Gel Moisturiser Bd Variant  (50ml)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 8,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-super-light-gel-moisturiser-50ml_36.webp",
+    "slug": "ponds-super-light-gel-moisturiser-bd-variant-50ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 149,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9390,
+    "is_best_sell": true,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Moisturizers",
+        "slug": "moisturizer"
+      },
+      {
+        "name": "Moisturizing Cream",
+        "slug": "moisturizer-cream"
+      }
+    ],
+    "name": "Pond's Super Light Gel Moisturiser Bd Variant (100ml)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 15,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-super-light-gel-moisturiser-100ml-1_85.webp",
+    "slug": "ponds-super-light-gel-moisturiser-bd-variant-100ml",
+    "has_discount": true,
+    "stroked_price": 350,
+    "main_price": 248,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9391,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Moisturizers",
+        "slug": "moisturizer"
+      },
+      {
+        "name": "Moisturizing Cream",
+        "slug": "moisturizer-cream"
+      }
+    ],
+    "name": "Pond's Hydra Miracle With Cera-Hyamino Light Moisturiser Bd Variant (100ml)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 1,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-hydra-miracle-with-cera-hyamino-light-moisturiser-100ml_45.webp",
+    "slug": "ponds-hydra-miracle-with-cera-hyamino-light-moisturiser-bd-variant-100ml",
+    "has_discount": true,
+    "stroked_price": 350,
+    "main_price": 247,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9392,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Moisturizers",
+        "slug": "moisturizer"
+      },
+      {
+        "name": "Moisturizing Cream",
+        "slug": "moisturizer-cream"
+      }
+    ],
+    "name": "Pond's Hydra Miracle With Cera-Hyamino Light Moisturiser Bd Variant (50ml)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 4,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-hydra-miracle-with-cera-hyamino-light-moisturiser-50ml_67.webp",
+    "slug": "ponds-hydra-miracle-with-cera-hyamino-light-moisturiser-bd-variant-50ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 149,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9574,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Cleansing Bars",
+        "slug": "cleansing-bars"
+      }
+    ],
+    "name": "Lux International Gluta Bar Smooth & Radiant (125gm)",
+    "brand": "Lux",
+    "brand_slug": "lux",
+    "qty": 2,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lux-international-gluta-bar-smooth--radiant-125gm_52.webp",
+    "slug": "lux-international-gluta-bar-smooth-radiant-125gm",
+    "has_discount": false,
+    "stroked_price": 100,
+    "main_price": 100,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9575,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Cleansing Bars",
+        "slug": "cleansing-bars"
+      }
+    ],
+    "name": "Lux International Gluta Bar Bouncy & Bright (125gm)",
+    "brand": "Lux",
+    "brand_slug": "lux",
+    "qty": 11,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lux-international-gluta-bar-smooth--radiant-125gm-1_48.webp",
+    "slug": "lux-international-gluta-bar-bouncy-bright-125gm",
+    "has_discount": false,
+    "stroked_price": 100,
+    "main_price": 100,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9577,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Stunning Black Shine Shampoo (450ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 2,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-stunning-black-shine-shampoo-450ml_31.webp",
+    "slug": "sunsilk-stunning-black-shine-shampoo-450ml",
+    "has_discount": true,
+    "stroked_price": 550,
+    "main_price": 447,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9578,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Cleansing Bars",
+        "slug": "cleansing-bars"
+      }
+    ],
+    "name": "Lux Fresh Glow Tangerine Vitamin C+E Bar Soap (90gm) + Free Emami 7 Oils in One Hair Oil (2.7ml)",
+    "brand": "Lux",
+    "brand_slug": "lux",
+    "qty": 17,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lux-fresh-glow-tangerine-vitamin-ce-bar-soap-90g_84.webp",
+    "slug": "lux-fresh-glow-tangerine-vitamin-ce-bar-soap-90gm-free-emami-7-oils-in-one-hair-oil-27ml",
+    "has_discount": false,
+    "stroked_price": 60,
+    "main_price": 60,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9579,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Stunning Black Shine Shampoo (340ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-stunning-black-shine-shampoo-380ml-1_67.webp",
+    "slug": "sunsilk-stunning-black-shine-shampoo-340ml",
+    "has_discount": true,
+    "stroked_price": 350,
+    "main_price": 322,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9580,
+    "is_best_sell": true,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Hair Serum",
+        "slug": "hair-serum"
+      }
+    ],
+    "name": "Sunsilk Serum Super Shine (100ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 19,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-serum-super-shine-100ml-stunning-black-shine-shampoo-380ml_31.webp",
+    "slug": "sunsilk-serum-super-shine-100ml",
+    "has_discount": true,
+    "stroked_price": 500,
+    "main_price": 409,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9582,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Lusciously Thick & Long Shampoo (170ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 4,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-think--long-shampoo-170ml_45.webp",
+    "slug": "sunsilk-lusciously-thick-long-shampoo-170ml",
+    "has_discount": true,
+    "stroked_price": 180,
+    "main_price": 175,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9583,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Shampoo Lusciously Thick & Long (650ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 4,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-shampoo-lusciously-thick--long-650ml-2_14.webp",
+    "slug": "sunsilk-shampoo-lusciously-thick-long-650ml",
+    "has_discount": true,
+    "stroked_price": 700,
+    "main_price": 566,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9584,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Shampoo Lusciously Thick & Long (340ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 11,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-shampoo-lusciously-thick--long-_86.webp",
+    "slug": "sunsilk-shampoo-lusciously-thick-long-340ml",
+    "has_discount": true,
+    "stroked_price": 350,
+    "main_price": 322,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9585,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Shampoo Lusciously Thick & Long (450ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 7,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-shampoo-lusciously-thick--long--1_79.webp",
+    "slug": "sunsilk-shampoo-lusciously-thick-long-450ml",
+    "has_discount": true,
+    "stroked_price": 550,
+    "main_price": 489,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9586,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Stunning Black Shine Shampoo (170ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-shampoo-lusciously-thick--long--2_91.webp",
+    "slug": "sunsilk-stunning-black-shine-shampoo-170ml",
+    "has_discount": true,
+    "stroked_price": 180,
+    "main_price": 166,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9609,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Shampoo Hair Fall Solution (170ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 15,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-shampoo-hair-fall-solution-1700-ml_55.webp",
+    "slug": "sunsilk-shampoo-hair-fall-solution-170ml",
+    "has_discount": true,
+    "stroked_price": 180,
+    "main_price": 170,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 10549,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Face Wash",
+        "slug": "face-wash"
+      }
+    ],
+    "name": "Pond's Skin Institute Hydra Miracle Gentle Gel Face Wash (50ml)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 8,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-skin-institute-hydra-miracle-gentle-gel-face-wash-50ml_1.webp",
+    "slug": "pond-s-skin-institute-hydra-miracle-gentle-gel-face-wash-50ml",
+    "has_discount": true,
+    "stroked_price": 130,
+    "main_price": 94,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11111,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Sunsilk Hair Fall Solution Shampoo (340ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 48,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ppti-lavender-exfoliating-foot-peel-mask-1.webp",
+    "slug": "sunsilk-hair-fall-solution-shampoo-340ml",
+    "has_discount": true,
+    "stroked_price": 350,
+    "main_price": 320,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11186,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Unilever Combo 1 ((100ml+50ml)",
+    "brand": "COMBO",
+    "brand_slug": "combo",
+    "qty": 1,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-light-moisturiser-100ml.webp",
+    "slug": "unilever-combo-1-100ml-50ml",
+    "has_discount": true,
+    "stroked_price": 2150,
+    "main_price": 1550,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11188,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Unilever Combo 3",
+    "brand": "COMBO",
+    "brand_slug": "combo",
+    "qty": 15,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/unilever-combo-3.webp",
+    "slug": "unilever-combo-3",
+    "has_discount": true,
+    "stroked_price": 1400,
+    "main_price": 1249,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11189,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Unilever Combo 4",
+    "brand": "COMBO",
+    "brand_slug": "combo",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-super-light-gel-moisturiser-50ml.webp",
+    "slug": "unilever-combo-4",
+    "has_discount": true,
+    "stroked_price": 1460,
+    "main_price": 1149,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11191,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Unilever Combo 6",
+    "brand": "COMBO",
+    "brand_slug": "combo",
+    "qty": 1,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-face-wash-hydra-miracle-gentle-gel-50g.webp",
+    "slug": "unilever-combo-6",
+    "has_discount": true,
+    "stroked_price": 830,
+    "main_price": 729,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11192,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Unilever Combo 7",
+    "brand": "COMBO",
+    "brand_slug": "combo",
+    "qty": 5,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/clear-men-anti-hairfall-shampoo-650ml-11.webp",
+    "slug": "unilever-combo-7",
+    "has_discount": true,
+    "stroked_price": 1775,
+    "main_price": 1549,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11194,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "\tUnilever Combo 8",
+    "brand": "COMBO",
+    "brand_slug": "combo",
+    "qty": 8,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-gluta-hya-dewy-radiance-serum-in-lotion-70ml.webp",
+    "slug": "unilever-combo-8",
+    "has_discount": true,
+    "stroked_price": 2180,
+    "main_price": 1999,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11195,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Unilever Combo 9",
+    "brand": "COMBO",
+    "brand_slug": "combo",
+    "qty": 15,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/unilever-combo-9.webp",
+    "slug": "unilever-combo-9",
+    "has_discount": true,
+    "stroked_price": 1775,
+    "main_price": 1525,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11196,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Unilever Combo 10",
+    "brand": "COMBO",
+    "brand_slug": "combo",
+    "qty": 5,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-gluta-hya-flawless-glow-serum-in-lotion-70ml.webp",
+    "slug": "unilever-combo-10",
+    "has_discount": true,
+    "stroked_price": 2180,
+    "main_price": 1999,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11402,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Hair Serum",
+        "slug": "hair-serum"
+      }
+    ],
+    "name": "TRESemmé Keratin Smooth Anti-Frizz Hair Serum Bd Variant (100ml)",
+    "brand": "TRESEMME",
+    "brand_slug": "tresemme",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/tresemm-keratin-smooth-anti-frizz-hair-serum-bd-variant-100ml.webp",
+    "slug": "tresemme-keratin-smooth-anti-frizz-hair-serum-bd-variant-100ml",
+    "has_discount": true,
+    "stroked_price": 1000,
+    "main_price": 799,
+    "discount_end_time": "",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 12136,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Bath & Shower",
+        "slug": "bath-shower"
+      },
+      {
+        "name": "Body Wash",
+        "slug": "body-wash"
+      }
+    ],
+    "name": "Lifebuoy Moisture Boost Bodywash (245ml)",
+    "brand": "Lifebuoy",
+    "brand_slug": "lifebuoy",
+    "qty": 5,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lifebuoy-moisture-boost-bodywash-245ml_1.webp",
+    "slug": "lifebuoy-moisture-boost-bodywash-245ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 168,
+    "discount_end_time": "",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 12137,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Bath & Shower",
+        "slug": "bath-shower"
+      },
+      {
+        "name": "Body Wash",
+        "slug": "body-wash"
+      }
+    ],
+    "name": "Lifebuoy Zesty Fresh Body Wash (245ml)",
+    "brand": "Lifebuoy",
+    "brand_slug": "lifebuoy",
+    "qty": 2,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lifebuoy-zesty-fresh-body-wash-245ml.webp",
+    "slug": "lifebuoy-zesty-fresh-body-wash-245ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 168,
+    "discount_end_time": "",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 12138,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Bath & Shower",
+        "slug": "bath-shower"
+      },
+      {
+        "name": "Body Wash",
+        "slug": "body-wash"
+      }
+    ],
+    "name": "Lifebuoy Ice Bath Body Wash (245ml)",
+    "brand": "Lifebuoy",
+    "brand_slug": "lifebuoy",
+    "qty": 1,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lifebuoy-ice-bath-body-wash-245ml-1.webp",
+    "slug": "lifebuoy-ice-bath-body-wash-245ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 168,
+    "discount_end_time": "",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 12139,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Bath & Shower",
+        "slug": "bath-shower"
+      },
+      {
+        "name": "Body Wash",
+        "slug": "body-wash"
+      }
+    ],
+    "name": "Lifebuoy Body Wash Total 10 (245ml)",
+    "brand": "Lifebuoy",
+    "brand_slug": "lifebuoy",
+    "qty": 6,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lifebuoy-body-wash-total-10-245ml.webp",
+    "slug": "lifebuoy-body-wash-total-10-245ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 168,
+    "discount_end_time": "",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 12156,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Bath & Shower",
+        "slug": "bath-shower"
+      },
+      {
+        "name": "Body Wash",
+        "slug": "body-wash"
+      }
+    ],
+    "name": "Lifebuoy Body Wash Combo",
+    "brand": "Lifebuoy",
+    "brand_slug": "lifebuoy",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lifebuoy-combo.jpg",
+    "slug": "lifebuoy-body-wash-combo",
+    "has_discount": true,
+    "stroked_price": 800,
+    "main_price": 699,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 12258,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      },
+      {
+        "name": "Body Lotion",
+        "slug": "body-lotion"
+      }
+    ],
+    "name": "Vaseline Healthy Bright Daily Brightening Body Lotion (300ml) with Vaseline Original Pure Petroleum Jelly (50ml) Free ",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 3,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-healthy-bright-daily-brightening-body-lotion-300ml-with-vaseline-original-pure-petroleum-jelly-50ml-free.webp",
+    "slug": "vaseline-healthy-bright-daily-brightening-body-lotion-300ml-with-vaseline-original-pure-petroleum-jelly-50ml-free",
+    "has_discount": true,
+    "stroked_price": 440,
+    "main_price": 429,
+    "discount_end_time": "31-01-2027 23:59:59",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": "2027-02-01",
+    "pao_months": null
+  },
+  {
+    "id": 12364,
+    "is_best_sell": true,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Pond's Miracle Me Hydration Combo with Pocket Mirror (100g +100ml)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 224,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/nabela-2.png",
+    "slug": "pond-s-miracle-me-hydration-combo-with-pocket-mirror-100g-100ml",
+    "has_discount": true,
+    "stroked_price": 600,
+    "main_price": 499,
+    "discount_end_time": "31-12-2026 23:59:59",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 12365,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": "Pond's Miracle Me Glow Combo with Pocket Mirror (100g+100ml)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 183,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/nabela-1.webp",
+    "slug": "pond-s-miracle-me-glow-combo-with-pocket-mirror-100g-100ml",
+    "has_discount": true,
+    "stroked_price": 600,
+    "main_price": 499,
+    "discount_end_time": "31-01-2027 23:59:59",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 12418,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      },
+      {
+        "name": "Body Oils & Balms",
+        "slug": "body-oil"
+      },
+      {
+        "name": "Body Balm",
+        "slug": "body-oil-and-balm"
+      }
+    ],
+    "name": "Vaseline Aloe Fresh Light Hydrating Jelly (50ml)",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 16,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-aloe-fresh-light-hydrating-jelly-50-ml.webp",
+    "slug": "vaseline-aloe-fresh-light-hydrating-jelly-50ml",
+    "has_discount": false,
+    "stroked_price": 75,
+    "main_price": 75,
+    "discount_end_time": "",
+    "is_new": true,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 12419,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      },
+      {
+        "name": "Body Lotion",
+        "slug": "body-lotion"
+      }
+    ],
+    "name": "Vaseline Intensive Care Cocoa Glow Serum In Lotion (100ml)",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 23,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-intensive-care-cocoa-glow-serum-in-lotion.webp",
+    "slug": "vaseline-intensive-care-cocoa-glow-serum-in-lotion-100ml",
+    "has_discount": false,
+    "stroked_price": 220,
+    "main_price": 220,
+    "discount_end_time": "",
+    "is_new": true,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 5783,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Moisturizers",
+        "slug": "moisturizer"
+      },
+      {
+        "name": "Moisturizing Cream",
+        "slug": "moisturizer-cream"
+      }
+    ],
+    "name": "Pond's Light Moisturiser Indian Variant",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-light-moisturizer-_93.webp",
+    "slug": "ponds-light-moisturiser-indian-variant",
+    "has_discount": false,
+    "stroked_price": 650,
+    "main_price": 650,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": false,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9168,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Face Wash",
+        "slug": "face-wash"
+      }
+    ],
+    "name": "Ponds Daily Face Wash (100gm)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-daily-face-wash-100gm_99.webp",
+    "slug": "ponds-daily-face-wash-100gm",
+    "has_discount": true,
+    "stroked_price": 170,
+    "main_price": 160,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9225,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Men's Care",
+        "slug": "mens-care"
+      }
+    ],
+    "name": "Clear Complete Active Care Anti-Dandruff Shampoo Bd Variant (330ml)",
+    "brand": "CLEAR",
+    "brand_slug": "clear",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/clear-complete-active-care-anti-dandruff-shampoo-330ml_83.webp",
+    "slug": "clear-complete-active-care-anti-dandruff-shampoo-bd-variant-330ml",
+    "has_discount": true,
+    "stroked_price": 400,
+    "main_price": 349,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9256,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Shampoo",
+        "slug": "shampoo"
+      }
+    ],
+    "name": "Dove Intense Repair Shampoo (330ml)+Free Dove Intense Repair Conditioner Bd Variant (50ml)",
+    "brand": "DOVE",
+    "brand_slug": "dove",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/dove-intense-repair-shampoo--330mlfree-dove-intense-repair-conditioner-50ml17-2_25.webp",
+    "slug": "dove-intense-repair-shampoo-330ml-free-dove-intense-repair-conditioner-50ml",
+    "has_discount": true,
+    "stroked_price": 440,
+    "main_price": 349,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 9265,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Hair",
+        "slug": "hair-care"
+      },
+      {
+        "name": "Hair Care",
+        "slug": "hair-care-products"
+      },
+      {
+        "name": "Conditioner",
+        "slug": "conditioner"
+      }
+    ],
+    "name": "Sunsilk Hair Fall Solution Conditioner Bd Variant  (170ml)",
+    "brand": "SUNSILK",
+    "brand_slug": "sunsilk",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/sunsilk-hair-fall-solution-conditioner-170ml_71.webp",
+    "slug": "sunsilk-hair-fall-solution-conditioner-bd-variant-170ml",
+    "has_discount": true,
+    "stroked_price": 200,
+    "main_price": 185,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 10548,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Cleansers & Exfoliators",
+        "slug": "cleanser"
+      },
+      {
+        "name": "Face Wash",
+        "slug": "face-wash"
+      }
+    ],
+    "name": "Pond's Skin Institute Hydra Miracle Gentle Gel Face Wash (100ml)",
+    "brand": "PONDS",
+    "brand_slug": "ponds",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-skin-institute-hydra-miracle-gentle-gel-face-wash-100ml.webp",
+    "slug": "pond-s-skin-institute-hydra-miracle-gentle-gel-face-wash-100ml",
+    "has_discount": true,
+    "stroked_price": 230,
+    "main_price": 163,
+    "discount_end_time": "04-01-2027 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 10552,
+    "is_best_sell": true,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Personal Care",
+        "slug": "personal-care"
+      },
+      {
+        "name": "Oral Care",
+        "slug": "oral-care"
+      },
+      {
+        "name": "Toothpaste",
+        "slug": "toothpaste"
+      }
+    ],
+    "name": "Close Up Whitening Purple Color Corrector Toothpaste (100gm)",
+    "brand": "Close Up",
+    "brand_slug": "close-up",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/close-up-whitening-purple-color-corrector-tooth-paste-100-g.webp",
+    "slug": "close-up-whitening-purple-color-corrector-toothpaste-100gm",
+    "has_discount": true,
+    "stroked_price": 300,
+    "main_price": 209,
+    "discount_end_time": "",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 10776,
+    "is_best_sell": true,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Bath & Shower",
+        "slug": "bath-shower"
+      },
+      {
+        "name": "Body Wash",
+        "slug": "body-wash"
+      }
+    ],
+    "name": "Lux The Exclusive Body Wash Combo Pack + 4 Surprise Gifts",
+    "brand": "Lux",
+    "brand_slug": "lux",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/lattafa-9.webp",
+    "slug": "lux-the-exclusive-body-wash-combo-pack-4-pond-s-super-light-gel-6ml",
+    "has_discount": true,
+    "stroked_price": 800,
+    "main_price": 599,
+    "discount_end_time": "27-12-2026 23:59:59",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 11187,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      }
+    ],
+    "name": " Unilever Combo 2 ",
+    "brand": "COMBO",
+    "brand_slug": "combo",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/ponds-light-moisturiser-50ml.png",
+    "slug": "unilever-combo-2",
+    "has_discount": true,
+    "stroked_price": 2200,
+    "main_price": 1489,
+    "discount_end_time": "27-12-2026 11:59:00",
+    "is_new": false,
+    "is_offer": true,
+    "expiry_date": null,
+    "pao_months": null
+  },
+  {
+    "id": 12257,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      },
+      {
+        "name": "Body Lotion",
+        "slug": "body-lotion"
+      }
+    ],
+    "name": "Vaseline Healthy Bright Daily Brightening Body Lotion (400ml) With Vaseline Healthy Bright Gluta-Hya Dewy Radiance Serum-in-Gel (70ml) Free.",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-healthy-bright-daily-brightening-body-lotion-400ml-with-vaseline-healthy-bright-gluta-hya-dewy-radiance-serum-in-gel-2.webp",
+    "slug": "vaseline-healthy-bright-daily-brightening-body-lotion-400ml-with-vaseline-healthy-bright-gluta-hya-dewy-radiance-serum-in-gel-70ml-free",
+    "has_discount": true,
+    "stroked_price": 610,
+    "main_price": 589,
+    "discount_end_time": "31-01-2027 23:59:59",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": "2026-12-27",
+    "pao_months": null
+  },
+  {
+    "id": 12259,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      },
+      {
+        "name": "Body Lotion",
+        "slug": "body-lotion"
+      }
+    ],
+    "name": "Vaseline Intensive Care Deep Restore Body Lotion (400ml) with Vaseline Healthy Bright Gluta-Hya Flawless Glow Serum-in-Gel (70ml) Free",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-intensive-care-deep-restore-body-lotion-400ml-with-vaseline-healthy-bright-gluta-hya-flawless-glow-serum-in-gel-70ml-2.webp",
+    "slug": "vaseline-intensive-care-deep-restore-body-lotion-400ml-with-vaseline-healthy-bright-gluta-hya-flawless-glow-serum-in-gel-70ml-free",
+    "has_discount": true,
+    "stroked_price": 600,
+    "main_price": 579,
+    "discount_end_time": "31-12-2026 23:59:59",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": "2027-01-31",
+    "pao_months": null
+  },
+  {
+    "id": 12260,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Bath & Body Care",
+        "slug": "bath-body-care"
+      },
+      {
+        "name": "Body Care",
+        "slug": "body-care"
+      },
+      {
+        "name": "Body Lotion",
+        "slug": "body-lotion"
+      }
+    ],
+    "name": "Vaseline Intensive Care Deep Restore Body Lotion (300ml) with Vaseline Original Pure Skin Jelly (50ml) Free",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/vaseline-intensive-care-deep-restore-body-lotion-300ml-with-vaseline-original-pure-skin-jelly-50ml-free.webp",
+    "slug": "vaseline-intensive-care-deep-restore-body-lotion-300ml-with-vaseline-original-pure-skin-jelly-50ml-free",
+    "has_discount": true,
+    "stroked_price": 430,
+    "main_price": 409,
+    "discount_end_time": "31-01-2027 23:59:59",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": "2027-01-13",
+    "pao_months": null
+  },
+  {
+    "id": 12261,
+    "is_best_sell": false,
+    "tree": [
+      {
+        "name": "Skin Care",
+        "slug": "skin-care"
+      },
+      {
+        "name": "Serums",
+        "slug": "serum-treatment"
+      },
+      {
+        "name": "Serum",
+        "slug": "serum"
+      }
+    ],
+    "name": "Vaseline Healthy Bright Gluta-Hya Dewy Radiance Serum in Gel (200ml) with Vaseline Healthy Bright Gluta-Hya Flawless Glow Serum in Gel (70ml) Free",
+    "brand": "VASELINE",
+    "brand_slug": "vaseline",
+    "qty": 0,
+    "combo_type": null,
+    "thumbnail_image": "https://cms.beautybooth.com.bd/uploads/all/blink-silicone-hair-scalp-massager-black-1.webp",
+    "slug": "vaseline-healthy-bright-gluta-hya-dewy-radiance-serum-in-gel-200ml-with-vaseline-healthy-bright-gluta-hya-flawless-glow-serum-in-gel-70-ml-free",
+    "has_discount": true,
+    "stroked_price": 500,
+    "main_price": 449,
+    "discount_end_time": "31-01-2027 23:59:59",
+    "is_new": true,
+    "is_offer": true,
+    "expiry_date": "2027-01-31",
+    "pao_months": null
+  }
+]

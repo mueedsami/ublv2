@@ -1,0 +1,17 @@
+{
+  "run_id": "20261102_130310",
+  "created_at": "2026-11-02T07:03:46.323614+00:00",
+  "results": [
+    {
+      "account": "pandamart",
+      "started_at": "2026-11-02T07:03:10.347073+00:00",
+      "completed_at": "2026-11-02T07:03:40.409431+00:00",
+      "return_code": 0,
+      "output": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\daily_files\\pandamart\\pandamart_basepack_20261102_130310.xlsx",
+      "output_exists": true,
+      "log": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\ola_runs\\20261102_130310\\pandamart.log",
+      "status": "success",
+      "database_upload": "success"
+    }
+  ]
+}

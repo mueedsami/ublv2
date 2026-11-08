@@ -14,7 +14,6 @@ import {
   RotateCcw,
   Search,
   ShieldAlert,
-  SlidersHorizontal,
   Sparkles,
   TableProperties,
   Target,
@@ -41,6 +40,14 @@ type CentralRow = {
   is_available: boolean;
   stock_qty: number;
   stock_valuation: number | null;
+};
+
+type SkuRow = {
+  account_code: string; account_name: string; account_sku: string; basepack: string;
+  product_name: string; brand: string; category: string; business_group: string;
+  branch: string; status: 'available'|'unavailable'|'unknown';
+  stock_qty: number | null; price: number | null; product_url: string | null;
+  observed_at: string; run_finished_at: string | null;
 };
 
 type AccountSummary = {
@@ -92,12 +99,25 @@ function dayDiff(a: string | null | undefined, b: string | null | undefined) {
 
 export default function CentralAvailabilityDashboard() {
   const [rows, setRows] = useState<CentralRow[]>([]);
+  const [skuRows, setSkuRows] = useState<SkuRow[]>([]);
+  const [catalogSummary,setCatalogSummary] = useState<{account_code:string;account_name:string;scraped_at:string|null;catalog_observations:number;in_stock:number;out_of_stock:number;unknown:number;ola_pct:number|null}[]>([]);
+  const [pandamartStore, setPandamartStore] = useState('all');
+  const [olaReadiness, setOlaReadiness] = useState<{stores:{store_id:string;store_name:string}[];skuCounts:Record<string,number>;latest:Record<string,{status:string;finished_at:string}|null>}|null>(null);
+  const [skuLoading, setSkuLoading] = useState(false);
+  const [skuError, setSkuError] = useState('');
+  const [skuLoaded, setSkuLoaded] = useState(false);
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
+  // Catalog-based BeautyBooth has no Master SKU/basepack rows in /api/central.
+  // Keep it selectable without merging catalog OLA into master-mapped executive KPIs.
+  const filterAccounts = useMemo(() => {
+    const mapped = accounts.filter(a => a.account_code !== 'ushop' && a.account_code !== 'beauty_booth');
+    return [...mapped, { account_code: 'beauty_booth', account_name: 'BeautyBooth', sort_order: 999, observation_date: null }].sort((a, b) => a.account_name.localeCompare(b.account_name, undefined, { sensitivity: 'base' }));
+  }, [accounts]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [search, setSearch] = useState('');
-  const [availabilityFilter, setAvailabilityFilter] = useState<'all'|'available'|'unavailable'>('all');
-  const [tab, setTab] = useState<'overview'|'pivot'>('overview');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all'|'available'|'unavailable'|'unknown'>('all');
+  const [tab, setTab] = useState<'overview'|'pivot'|'sku'>('overview');
   const [pivotDimension, setPivotDimension] = useState<PivotDimension>('brandBasepack');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -111,12 +131,18 @@ export default function CentralAvailabilityDashboard() {
       const nextAccounts: AccountSummary[] = json.accounts ?? [];
       setRows(json.rows ?? []);
       setAccounts(nextAccounts);
-      setSelectedAccounts((current) => current.length ? current : nextAccounts.map((a) => a.account_code));
+      setSelectedAccounts((current) => {
+        const eligible = nextAccounts.filter(a => a.account_code !== 'ushop' && a.account_code !== 'beauty_booth').map(a => a.account_code).concat('beauty_booth');
+        const retained = current.filter(code => eligible.includes(code));
+        return retained.length ? retained : eligible;
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load central availability.');
     } finally { setLoading(false); }
   }
 
+  useEffect(()=>{fetch('/api/ola/catalog-summary',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(body=>{if(body)setCatalogSummary(body.accounts??[]);}).catch(()=>{});},[]);
+  useEffect(()=>{fetch('/api/central/ola-readiness',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(data=>{if(data)setOlaReadiness(data);}).catch(()=>{});},[]);
   useEffect(() => { void load(); }, []);
 
   const businessGroupOptions = useMemo(() => [...new Set(rows.flatMap((r)=>arr(r.business_groups)))].sort(), [rows]);
@@ -134,8 +160,9 @@ export default function CentralAvailabilityDashboard() {
       if (filters.subCategory !== 'all' && !arr(r.sub_categories).includes(filters.subCategory)) return false;
       if (filters.brand !== 'all' && !arr(r.brands).includes(filters.brand)) return false;
       if (filters.basepack !== 'all' && r.packsize !== filters.basepack) return false;
-      if (availabilityFilter === 'available' && Number(r.availability_score) <= 0) return false;
-      if (availabilityFilter === 'unavailable' && Number(r.availability_score) > 0) return false;
+      if (availabilityFilter === 'available' && (r.availability_score == null || Number(r.availability_score) <= 0)) return false;
+      if (availabilityFilter === 'unavailable' && (r.availability_score == null || Number(r.availability_score) > 0)) return false;
+      if (availabilityFilter === 'unknown' && r.availability_score != null) return false;
       if (q) {
         const haystack = [r.packsize,...arr(r.brands),...arr(r.business_groups),...arr(r.categories),...arr(r.sub_categories),r.account_name].join(' ').toLowerCase();
         if (!haystack.includes(q)) return false;
@@ -143,6 +170,40 @@ export default function CentralAvailabilityDashboard() {
       return true;
     });
   }, [rows, selectedAccounts, filters, search, availabilityFilter]);
+
+  async function loadSkuRows() {
+    setSkuLoading(true); setSkuError('');
+    try {
+      const response = await fetch('/api/central/skus', { cache: 'no-store' });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Could not load SKU observations');
+      setSkuRows(payload.rows ?? []);
+      setSkuLoaded(true);
+    } catch (error) {
+      setSkuError(error instanceof Error ? error.message : 'Failed to load SKU observations');
+    } finally { setSkuLoading(false); }
+  }
+
+  const pandamartStoreOptions = useMemo(() => [...new Set(skuRows.filter(r=>r.account_code==='pandamart').map(r=>r.branch))].sort(), [skuRows]);
+
+  const filteredSkuRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return skuRows.filter((r) => {
+      if (!selectedAccounts.includes(r.account_code)) return false;
+      if (pandamartStore !== 'all' && r.account_code==='pandamart' && r.branch!==pandamartStore) return false;
+      if (availabilityFilter !== 'all' && r.status !== availabilityFilter) return false;
+      if (filters.businessGroup !== 'all' && r.business_group !== filters.businessGroup) return false;
+      if (filters.category !== 'all' && r.category !== filters.category) return false;
+      if (filters.brand !== 'all' && r.brand !== filters.brand) return false;
+      if (filters.basepack !== 'all' && r.basepack !== filters.basepack) return false;
+      if (filters.subCategory !== 'all') {
+        // There is no SKU-level subcategory in the scraper payload; check basepack metadata.
+        if (!rows.some((b) => b.account_code===r.account_code && b.packsize===r.basepack && arr(b.sub_categories).includes(filters.subCategory))) return false;
+      }
+      if (query && ![r.account_name,r.account_sku,r.basepack,r.product_name,r.brand,r.category,r.branch,r.business_group].join(' ').toLowerCase().includes(query)) return false;
+      return true;
+    });
+  }, [skuRows, rows, selectedAccounts, pandamartStore, availabilityFilter, filters, search]);
 
   const accountStats = useMemo(() => accounts.filter((a)=>selectedAccounts.includes(a.account_code)).map((a) => {
     const scoped = filteredRows.filter((r)=>r.account_code===a.account_code);
@@ -257,8 +318,17 @@ export default function CentralAvailabilityDashboard() {
     setSelectedAccounts((current) => current.includes(code) ? (current.length===1?current:current.filter((x)=>x!==code)) : [...current,code]);
   }
   function focusAccount(code:string) { setSelectedAccounts([code]); }
-  function reset() { setFilters(EMPTY_FILTERS); setSearch(''); setAvailabilityFilter('all'); setSelectedAccounts(accounts.map((a)=>a.account_code)); }
-  function exportFiltered() { exportCsv(`central-availability-${availabilityFilter}`, filteredRows.map((r)=>({ Account:r.account_name, Date:r.observation_date, Basepack:r.packsize, Brand:arr(r.brands).join(' | '), Business_Unit:arr(r.business_groups).join(' | '), Category:arr(r.categories).join(' | '), Sub_Category:arr(r.sub_categories).join(' | '), Availability:r.availability_score>0?'Available':'Unavailable', Availability_Pct:(Number(r.availability_score)*100).toFixed(2), Stock:r.stock_qty }))); }
+  function reset() { setFilters(EMPTY_FILTERS); setSearch(''); setAvailabilityFilter('all'); setPandamartStore('all'); setSelectedAccounts(filterAccounts.map((a)=>a.account_code)); }
+  function exportSkuRows() {
+    exportCsv(`central-sku-ola-${pandamartStore==='all'?'all-stores':pandamartStore.replace(/[^a-z0-9-]/gi,'-')}-${availabilityFilter}`, filteredSkuRows.map((r)=>({
+      Account:r.account_name, Branch:r.branch, Product:r.product_name, Account_SKU:r.account_sku,
+      Basepack:r.basepack, Brand:r.brand, Business_Unit:r.business_group, Category:r.category,
+      Availability:r.status==='available'?'In Stock':r.status==='unavailable'?'Out of Stock':'Unknown',
+      Stock_Qty:r.stock_qty ?? '', Price:r.price ?? '', Product_URL:r.product_url ?? '',
+      Observed_At:r.observed_at, Run_Finished_At:r.run_finished_at ?? '',
+    })));
+  }
+  function exportFiltered() { exportCsv(`central-availability-${availabilityFilter}`, filteredRows.map((r)=>({ Account:r.account_name, Date:r.observation_date, Basepack:r.packsize, Brand:arr(r.brands).join(' | '), Business_Unit:arr(r.business_groups).join(' | '), Category:arr(r.categories).join(' | '), Sub_Category:arr(r.sub_categories).join(' | '), Availability:r.availability_score==null?'Unknown':r.availability_score>0?'In Stock':'Out of Stock', Availability_Pct:(Number(r.availability_score)*100).toFixed(2), Stock:r.stock_qty }))); }
   function setFilter<K extends keyof Filters>(key:K,value:string) {
     setFilters((prev) => {
       if (key==='businessGroup') return {...EMPTY_FILTERS,businessGroup:value};
@@ -285,7 +355,8 @@ export default function CentralAvailabilityDashboard() {
         <p>One presentation view of where Unilever is winning availability, where coverage is breaking, and which basepacks need action across accounts.</p>
       </div>
       <div className="central-head-actions">
-        <button className="button secondary" onClick={exportFiltered} disabled={!filteredRows.length}><Download size={16}/>Export view</button>
+        <a className="button secondary" href="/central/url-mappings">SKU–URL Mapping Manager</a>
+        <button className="button secondary" onClick={tab==='sku'?exportSkuRows:exportFiltered} disabled={tab==='sku'?!filteredSkuRows.length:!filteredRows.length}><Download size={16}/>Export {tab==='sku'?'SKUs':'basepacks'} (CSV)</button>
         <button className="button secondary" onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/>{loading?'Refreshing':'Refresh'}</button>
       </div>
     </div>
@@ -319,6 +390,7 @@ export default function CentralAvailabilityDashboard() {
         <div className="central-tabs central-tabs-heavy">
           <button className={tab==='overview'?'active':''} onClick={()=>setTab('overview')}><LayoutGrid size={16}/>Executive overview</button>
           <button className={tab==='pivot'?'active':''} onClick={()=>setTab('pivot')}><TableProperties size={16}/>Availability matrix</button>
+          <button className={tab==='sku'?'active':''} onClick={()=>{setTab('sku');if(!skuLoaded && !skuLoading) void loadSkuRows();}}><Layers3 size={16}/>SKU availability audit</button>
         </div>
         <button className="button secondary compact" onClick={reset}><RotateCcw size={15}/>Reset scope</button>
       </div>
@@ -330,16 +402,55 @@ export default function CentralAvailabilityDashboard() {
         <label><span>Category</span><select value={filters.category} onChange={(e)=>setFilter('category',e.target.value)}><option value="all">All categories</option>{categoryOptions.map((v)=><option key={v} value={v}>{v}</option>)}</select></label>
         <label><span>Sub-category</span><select value={filters.subCategory} onChange={(e)=>setFilter('subCategory',e.target.value)}><option value="all">All sub-categories</option>{subCategoryOptions.map((v)=><option key={v} value={v}>{v}</option>)}</select></label>
         <label><span>Brand</span><select value={filters.brand} onChange={(e)=>setFilter('brand',e.target.value)}><option value="all">All brands</option>{brandOptions.map((v)=><option key={v} value={v}>{v}</option>)}</select></label>
-        <label><span>Availability</span><select value={availabilityFilter} onChange={(e)=>setAvailabilityFilter(e.target.value as 'all'|'available'|'unavailable')}><option value="all">All products</option><option value="available">Available only</option><option value="unavailable">Unavailable only</option></select></label>
+        <div className="central-accounts-field">
+          <span className="central-filter-label">Accounts</span>
+          <details className="central-accounts-dropdown">
+            <summary aria-label="Filter marketplace accounts">
+              <span>{selectedAccounts.length === filterAccounts.length ? 'All accounts' : selectedAccounts.length === 1 ? (filterAccounts.find((a) => a.account_code === selectedAccounts[0])?.account_name ?? '1 account') : `${selectedAccounts.length} of ${filterAccounts.length} accounts`}</span>
+              <span aria-hidden="true" className="central-accounts-chevron">⌄</span>
+            </summary>
+            <div className="central-accounts-menu">
+              <div className="central-accounts-menu-head">
+                <strong>Select accounts</strong>
+                <div className="central-account-actions" style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+                  <button type="button" onClick={() => setSelectedAccounts(['arogga'])}>Clear all</button>
+                  <button type="button" onClick={() => setSelectedAccounts(filterAccounts.map((a) => a.account_code))}>Select all</button>
+                </div>
+              </div>
+              <div className="central-accounts-menu-options">
+                {filterAccounts.map((a) => (
+                  <label key={a.account_code} className="central-accounts-option">
+                    <input type="checkbox" checked={selectedAccounts.includes(a.account_code)} onChange={() => toggleAccount(a.account_code)} />
+                    <span>{a.account_name}</span>
+                  </label>
+                ))}
+              </div>
+              <p>At least one account must remain selected.</p>
+            </div>
+          </details>
+        </div>
+        <label><span>Availability</span><select value={availabilityFilter} onChange={(e)=>setAvailabilityFilter(e.target.value as 'all'|'available'|'unavailable'|'unknown')}><option value="all">All products</option><option value="available">Available only</option><option value="unavailable">Out of Stock only</option><option value="unknown">Unknown / failed check</option></select></label>
+        {tab==='sku' && selectedAccounts.includes('pandamart') && <label><span>Pandamart darkstore</span><select value={pandamartStore} onChange={(e)=>setPandamartStore(e.target.value)}><option value="all">All darkstores</option>{pandamartStoreOptions.map((name)=><option key={name} value={name}>{name}</option>)}</select></label>}
         <label><span>Basepack</span><select value={filters.basepack} onChange={(e)=>setFilter('basepack',e.target.value)}><option value="all">All basepacks</option>{basepackOptions.map((v)=><option key={v} value={v}>{v}</option>)}</select></label>
-      </div>
-      <div className="account-toggle-row central-account-toggle-row">
-        <span><SlidersHorizontal size={14}/>Accounts</span>
-        {accounts.map((a)=><button key={a.account_code} className={selectedAccounts.includes(a.account_code)?'selected':''} onClick={()=>toggleAccount(a.account_code)}>{a.account_name}</button>)}
       </div>
     </section>
 
-    {tab==='overview' ? <>
+    {tab==='sku' && olaReadiness && <section className="card"><div className="card-head"><div><h2>Pandamart darkstore readiness</h2><p>Pandamart: {olaReadiness.stores.length} darkstores · {olaReadiness.skuCounts.pandamart??0} Master SKUs · latest run: {olaReadiness.latest.pandamart?.status??'not run'}.</p></div></div></section>}
+    <section className="card" aria-label="Catalog-only availability"><div className="card-head"><div><h2>Catalog-based OLA — BeautyBooth</h2><p>Independent of Master SKU basepack coverage. Scraped stock 0 = OOS, positive stock = In Stock, missing/invalid = Unknown. Do not combine these figures with basepack-level scope OLA above.</p></div></div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(225px,1fr))',gap:12,padding:12}}>
+        {!selectedAccounts.includes('beauty_booth') && <p style={{padding:16}}>Select BeautyBooth in Accounts to view its catalog-based OLA.</p>}
+        {catalogSummary.filter(c=>c.account_code==='beauty_booth' && selectedAccounts.includes('beauty_booth')).map(c=><div className="card" key={c.account_code} style={{padding:16}}><strong>{c.account_name}</strong><p style={{margin:'8px 0'}}>OLA: <strong>{c.ola_pct==null?'—':`${Number(c.ola_pct).toFixed(2)}%`}</strong></p><p>{Number(c.catalog_observations).toLocaleString()} products/variants · {c.in_stock} in stock · {c.out_of_stock} OOS · {c.unknown} unknown</p><p style={{fontSize:12}}>{c.scraped_at?`Last scrape: ${new Date(c.scraped_at).toLocaleString()}`:'No catalog-stock OLA scrape uploaded yet'}</p><a href={`/ola/${c.account_code}`}>Daily &amp; monthly history</a></div>)}
+      </div>
+    </section>
+    {tab==='sku' ? <section className="card central-sku-audit">
+      <div className="card-head"><div><h2>SKU-wise availability audit</h2><p>Latest completed scrape per marketplace. Every SKU and Pandamart branch is a separate observation. This list follows the filters above; CSV export includes all matching rows.</p></div>
+      <button className="button secondary" onClick={()=>void loadSkuRows()} disabled={skuLoading}><RefreshCw size={15}/>{skuLoading?'Loading SKUs':'Refresh SKU data'}</button></div>
+      {skuError && <div className="alert error">{skuError}</div>}
+      <p><strong>{filteredSkuRows.length.toLocaleString()}</strong> matching SKU observations · <strong>{filteredSkuRows.filter(r=>r.status==='available').length}</strong> in stock · <strong>{filteredSkuRows.filter(r=>r.status==='unavailable').length}</strong> out of stock · <strong>{filteredSkuRows.filter(r=>r.status==='unknown').length}</strong> unknown</p>
+      <div className="table-wrap" style={{maxHeight:560,overflow:'auto'}}><table className="central-summary-table"><thead><tr><th>Account</th><th>Branch</th><th>SKU</th><th>Product</th><th>Basepack</th><th>Brand</th><th>Status</th><th>Qty</th><th>Checked at</th><th>Evidence</th></tr></thead>
+      <tbody>{filteredSkuRows.map((r,index)=><tr key={`${r.account_code}-${r.branch}-${r.account_sku}-${index}`}><td>{r.account_name}</td><td>{r.branch}</td><td>{r.account_sku}</td><td>{r.product_name}</td><td>{r.basepack}</td><td>{r.brand}</td><td><span className={`status ${r.status==='available'?'available':r.status==='unavailable'?'oos':'not-listed'}`}>{r.status==='available'?'In Stock':r.status==='unavailable'?'Out of Stock':'Unknown'}</span></td><td>{r.stock_qty ?? '—'}</td><td>{r.observed_at ? new Date(r.observed_at).toLocaleString():'—'}</td><td>{r.product_url?<a href={r.product_url} target="_blank" rel="noopener noreferrer">Listing</a>:'—'}</td></tr>)}
+      {!filteredSkuRows.length && <tr><td colSpan={10} className="empty">{skuLoading?'Loading SKU observations…':'No SKU observations match the filters.'}</td></tr>}</tbody></table></div>
+    </section> : tab==='overview' ? <>
       <section className="central-executive-kpis">
         <div className="central-exec-kpi primary"><div className="central-exec-icon"><Target size={18}/></div><span>Scope OLA</span><strong>{pct(executive.overall)}</strong><small>Average across valid scoped cells</small></div>
         <div className="central-exec-kpi"><div className="central-exec-icon good"><CheckCircle2 size={18}/></div><span>Fully available</span><strong>{executive.full.toLocaleString()}</strong><small>{executive.totalCells?pct(executive.full/executive.totalCells):'—'} of measured cells</small></div>

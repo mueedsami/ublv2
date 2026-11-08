@@ -1,0 +1,94 @@
+{
+  "run_id": "20261108_102930",
+  "created_at": "2026-11-08T04:40:59.695589+00:00",
+  "results": [
+    {
+      "account": "daraz",
+      "started_at": "2026-11-08T04:29:30.564190+00:00",
+      "completed_at": "2026-11-08T04:29:59.367429+00:00",
+      "return_code": 0,
+      "output": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\daily_files\\daraz\\daraz_basepack_20261108_102930.xlsx",
+      "output_exists": true,
+      "log": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\ola_runs\\20261108_102930\\daraz.log",
+      "status": "success",
+      "database_upload": "success"
+    },
+    {
+      "account": "shajgoj",
+      "started_at": "2026-11-08T04:29:30.565183+00:00",
+      "completed_at": "2026-11-08T04:34:12.433697+00:00",
+      "return_code": 0,
+      "output": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\daily_files\\shajgoj\\shajgoj_basepack_20261108_102930.xlsx",
+      "output_exists": true,
+      "log": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\ola_runs\\20261108_102930\\shajgoj.log",
+      "status": "success",
+      "database_upload": "success"
+    },
+    {
+      "account": "pandamart",
+      "started_at": "2026-11-08T04:29:30.567279+00:00",
+      "completed_at": "2026-11-08T04:29:52.777533+00:00",
+      "return_code": 0,
+      "output": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\daily_files\\pandamart\\pandamart_basepack_20261108_102930.xlsx",
+      "output_exists": true,
+      "log": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\ola_runs\\20261108_102930\\pandamart.log",
+      "status": "success",
+      "database_upload": "success"
+    },
+    {
+      "account": "arogga",
+      "started_at": "2026-11-08T04:29:30.568229+00:00",
+      "completed_at": "2026-11-08T04:40:42.879241+00:00",
+      "return_code": 0,
+      "output": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\daily_files\\arogga\\arogga_basepack_20261108_102930.xlsx",
+      "output_exists": true,
+      "log": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\ola_runs\\20261108_102930\\arogga.log",
+      "status": "success",
+      "database_upload": "success"
+    },
+    {
+      "account": "othoba",
+      "started_at": "2026-11-08T04:29:30.570249+00:00",
+      "completed_at": "2026-11-08T04:35:26.140979+00:00",
+      "return_code": 0,
+      "output": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\daily_files\\othoba\\othoba_basepack_20261108_102930.xlsx",
+      "output_exists": true,
+      "log": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\ola_runs\\20261108_102930\\othoba.log",
+      "status": "success",
+      "database_upload": "success"
+    },
+    {
+      "account": "shwapno",
+      "started_at": "2026-11-08T04:29:30.571188+00:00",
+      "completed_at": "2026-11-08T04:29:40.744081+00:00",
+      "return_code": 0,
+      "output": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\daily_files\\shwapno\\shwapno_basepack_20261108_102930.xlsx",
+      "output_exists": true,
+      "log": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\ola_runs\\20261108_102930\\shwapno.log",
+      "status": "success",
+      "database_upload": "success"
+    },
+    {
+      "account": "cartup",
+      "started_at": "2026-11-08T04:29:30.572616+00:00",
+      "completed_at": "2026-11-08T04:29:35.250807+00:00",
+      "return_code": 0,
+      "output": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\daily_files\\cartup\\cartup_basepack_20261108_102930.xlsx",
+      "output_exists": true,
+      "log": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\ola_runs\\20261108_102930\\cartup.log",
+      "status": "success",
+      "database_upload": "success"
+    },
+    {
+      "account": "beauty_booth",
+      "started_at": "2026-11-08T04:29:30.574358+00:00",
+      "completed_at": "2026-11-08T04:29:37.124508+00:00",
+      "return_code": 0,
+      "output": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\daily_files\\beauty_booth\\beauty_booth_basepack_20261108_102930.xlsx",
+      "output_exists": true,
+      "log": "E:\\UBL_Availability_V2_Configured_2026-10-06\\ubl-availability-v2\\the scrapers for ola\\ola_runs\\20261108_102930\\beauty_booth.log",
+      "status": "success",
+      "database_upload": "success"
+    }
+  ]
+}

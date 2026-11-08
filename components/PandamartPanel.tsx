@@ -184,7 +184,7 @@ export default function PandamartPanel() {
     <section className="account-command-card">
       <div className="account-command-top">
         <div className="pandamart-tabs account-tabs-heavy" role="tablist" aria-label="Pandamart sections">
-          {TABS.map((tab) => <button key={tab.key} type="button" role="tab" aria-selected={activeTab === tab.key} className={activeTab === tab.key ? 'active' : ''} onClick={() => setActiveTab(tab.key)}>
+          {TABS.filter(tab => tab.key !== 'daily' && tab.key !== 'monthly').map((tab) => <button key={tab.key} type="button" role="tab" aria-selected={activeTab === tab.key} className={activeTab === tab.key ? 'active' : ''} onClick={() => setActiveTab(tab.key)}>
             {tab.label}{tab.key === 'flags' && flags.length > 0 ? <span className="tab-count alert-count">{flags.length}</span> : null}
           </button>)}
         </div>

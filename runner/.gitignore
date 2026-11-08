@@ -1,0 +1,5 @@
+.env.ola.local
+.env.ola.local.*
+!.env.ola.local.example
+__pycache__/
+*.pyc
