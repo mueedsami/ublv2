@@ -135,19 +135,26 @@ function monthFromFilename(fileName: string): { from: string; to: string } | nul
 
 async function parseDarazAsync(buffer: Buffer, fileName: string): Promise<ParsedCppWorkbook> {
   const workbook = await loadWorkbook(buffer);
-  const sheet = workbook.worksheets.find((s) => /working\s*file/i.test(s.name)) || workbook.worksheets[0];
-  const header = findHeaderRow(sheet, [
+  // Only an explicitly supplied Selling Price is a valid Daraz CPP target.
+  // Do not infer it from MRP, trade price, discounts, or backmargin.
+  const required: string[][] = [
     ['Daraz sku', 'Daraz SKU', 'daraz_sku'],
-    ['MRP'],
-    ['October Backmargin', 'Backmargin', 'October BM'],
-  ]);
-  if (!header) throw new Error('Daraz CPP sheet must contain Daraz sku, MRP and October Backmargin columns.');
+    ['Selling Price'],
+  ];
+  const preferred = workbook.worksheets.find((s) => /working\s*file/i.test(s.name));
+  const sheet = (preferred && findHeaderRow(preferred, required) ? preferred : null)
+    || workbook.worksheets.find((s) => findHeaderRow(s, required));
+  if (!sheet) {
+    throw new Error('Daraz CPP import requires both "Daraz sku" and "Selling Price" columns in the same sheet. The previous MRP − October Backmargin calculation is disabled. Add the actual Selling Price values to your reference workbook and re-upload it.');
+  }
+  const header = findHeaderRow(sheet, required);
+  if (!header) throw new Error('Daraz CPP selling-price header was not found.');
 
   const skuIdx = headerIndex(header.headers, ['Daraz sku', 'Daraz SKU', 'daraz_sku']);
   const nameIdx = headerIndex(header.headers, ['Product Name', 'Product Name ']);
   const brandIdx = headerIndex(header.headers, ['Brand Name', 'Brand']);
   const mrpIdx = headerIndex(header.headers, ['MRP']);
-  const backmarginIdx = headerIndex(header.headers, ['October Backmargin', 'Backmargin', 'October BM']);
+  const priceIdx = headerIndex(header.headers, ['Selling Price']);
   const startIdx = headerIndex(header.headers, ['Start Date']);
   const endIdx = headerIndex(header.headers, ['End Date']);
 
@@ -158,10 +165,9 @@ async function parseDarazAsync(buffer: Buffer, fileName: string): Promise<Parsed
     const cells = sheet.rows[r] || [];
     const accountSku = cleanSku(cells[skuIdx]);
     if (!accountSku) continue;
-    const mrp = numberValue(cells[mrpIdx]);
-    const support = numberValue(cells[backmarginIdx]);
-    if (mrp === null || support === null) {
-      warnings.push(`${sheet.name} row ${r + 1}: skipped because MRP or October Backmargin is invalid.`);
+    const expectedPrice = numberValue(cells[priceIdx]);
+    if (expectedPrice === null || expectedPrice <= 0) {
+      warnings.push(`${sheet.name} row ${r + 1}: skipped Daraz SKU ${accountSku}; Selling Price must be a positive number.`);
       continue;
     }
     if (seen.has(accountSku)) {
@@ -169,7 +175,6 @@ async function parseDarazAsync(buffer: Buffer, fileName: string): Promise<Parsed
       continue;
     }
     seen.add(accountSku);
-    const expectedPrice = Math.max(0, mrp - support);
     rows.push({
       sourceSheet: sheet.name,
       rowNumber: r + 1,
@@ -180,8 +185,8 @@ async function parseDarazAsync(buffer: Buffer, fileName: string): Promise<Parsed
       brand: brandIdx >= 0 ? valueText(cells[brandIdx]) : '',
       category: '',
       expectedPrice,
-      mrp,
-      supportAmount: support,
+      mrp: mrpIdx >= 0 ? numberValue(cells[mrpIdx]) : null,
+      supportAmount: null,
       effectiveFrom: startIdx >= 0 ? excelDate(cells[startIdx]) : null,
       effectiveTo: endIdx >= 0 ? excelDate(cells[endIdx]) : null,
       raw: rawObject(header.headers, cells),
@@ -192,8 +197,8 @@ async function parseDarazAsync(buffer: Buffer, fileName: string): Promise<Parsed
   const ends = rows.map((row) => row.effectiveTo).filter(Boolean) as string[];
   const inferred = monthFromFilename(fileName);
   return {
-    profileName: 'Daraz CPP — MRP less October Backmargin',
-    profileNote: 'Daraz expected CPP is calculated as MRP − October Backmargin for each Daraz SKU.',
+    profileName: 'Daraz CPP — Selling Price',
+    profileNote: 'Daraz expected CPP is taken directly from the Selling Price column. MRP is informational only; October Backmargin is not used.',
     rows,
     warnings,
     detectedSheets: [sheet.name],

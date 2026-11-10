@@ -109,9 +109,21 @@ export default function CentralAvailabilityDashboard() {
   const [accounts, setAccounts] = useState<AccountSummary[]>([]);
   // Catalog-based BeautyBooth has no Master SKU/basepack rows in /api/central.
   // Keep it selectable without merging catalog OLA into master-mapped executive KPIs.
+  // Keep the account selector independent of historical stock-upload coverage.
+  // These active scraped accounts may not yet appear in the legacy central OLA view.
+  // This is a selector-only fallback: do not invent availability scores for missing rows.
   const filterAccounts = useMemo(() => {
     const mapped = accounts.filter(a => a.account_code !== 'ushop' && a.account_code !== 'beauty_booth');
-    return [...mapped, { account_code: 'beauty_booth', account_name: 'BeautyBooth', sort_order: 999, observation_date: null }].sort((a, b) => a.account_name.localeCompare(b.account_name, undefined, { sensitivity: 'base' }));
+    const byCode = new Map<string, AccountSummary>(mapped.map(a => [a.account_code, a]));
+    for (const [account_code, account_name] of [
+      ['arogga', 'Arogga'], ['cartup', 'Cartup'], ['shwapno', 'Shwapno'],
+    ] as const) {
+      if (!byCode.has(account_code)) {
+        byCode.set(account_code, { account_code, account_name, sort_order: 998, observation_date: null });
+      }
+    }
+    byCode.set('beauty_booth', { account_code: 'beauty_booth', account_name: 'BeautyBooth', sort_order: 999, observation_date: null });
+    return [...byCode.values()].sort((a, b) => a.account_name.localeCompare(b.account_name, undefined, { sensitivity: 'base' }));
   }, [accounts]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -132,7 +144,7 @@ export default function CentralAvailabilityDashboard() {
       setRows(json.rows ?? []);
       setAccounts(nextAccounts);
       setSelectedAccounts((current) => {
-        const eligible = nextAccounts.filter(a => a.account_code !== 'ushop' && a.account_code !== 'beauty_booth').map(a => a.account_code).concat('beauty_booth');
+        const eligible = [...new Set([...nextAccounts.filter(a => a.account_code !== 'ushop' && a.account_code !== 'beauty_booth').map(a => a.account_code), 'arogga', 'cartup', 'shwapno', 'beauty_booth'])];
         const retained = current.filter(code => eligible.includes(code));
         return retained.length ? retained : eligible;
       });
