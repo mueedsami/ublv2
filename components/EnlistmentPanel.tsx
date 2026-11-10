@@ -1,4 +1,5 @@
 'use client';
+import { createPortal } from 'react-dom';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Download, FileSpreadsheet, PackagePlus, RefreshCw, RotateCcw, Search, Upload, X } from 'lucide-react';
@@ -364,7 +365,20 @@ function ProductDrawer({ product, accounts, statuses, busy, onClose, onSetAccoun
 
   useEffect(() => setChosen(selected), [product.id, product.targets.map((t) => `${t.id}:${t.selected}`).join('|')]);
 
-  return <div className="enlistment-drawer-backdrop" onMouseDown={(e) => { if (e.currentTarget === e.target) onClose(); }}><aside className="enlistment-drawer">
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  useEffect(() => { setDrawerMounted(true); }, []);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  return drawerMounted ? createPortal(<div className="enlistment-drawer-backdrop" onMouseDown={(e) => { if (e.currentTarget === e.target) onClose(); }}><aside className="enlistment-drawer">
     <div className="enlistment-drawer-head"><div><span className="eyebrow">Enlistment detail</span><h2>{product.name}</h2><p>{product.brand || '—'} · {product.barcode || 'No barcode'}</p></div><button className="icon-button" onClick={onClose}><X size={20}/></button></div>
     <div className="enlistment-drawer-summary"><div><span>Target accounts</span><strong>{selectedTargets.length}</strong></div><div><span>Enlisted</span><strong>{enlistedTargets}</strong></div><div><span>Completion</span><strong>{drawerProgress}%</strong></div><div className={attentionTargets ? 'attention' : ''}><span>Needs attention</span><strong>{attentionTargets}</strong></div><div className="enlistment-drawer-progress"><span style={{ width: `${drawerProgress}%` }}/></div></div>
 
@@ -375,7 +389,7 @@ function ProductDrawer({ product, accounts, statuses, busy, onClose, onSetAccoun
     <section className="enlistment-drawer-section"><div className="section-title-row"><div><h3>Target accounts</h3><p>Manual selection only. The source file's platform columns are ignored.</p></div><button className="button secondary compact" onClick={() => void onSetAccounts(product, chosen)} disabled={busy}>Save accounts</button></div><div className="enlistment-drawer-accounts">{accounts.map((a) => <label key={a.id} className={chosen.includes(a.code) ? 'selected' : ''}><input type="checkbox" checked={chosen.includes(a.code)} onChange={(e) => setChosen((old) => e.target.checked ? [...old, a.code] : old.filter((x) => x !== a.code))}/><div><strong>{a.name}</strong><span>{accountFormat(a.code)}</span></div></label>)}</div></section>
 
     <section className="enlistment-drawer-section"><h3>Account progress</h3>{product.targets.filter((t) => t.selected).length ? <div className="enlistment-target-cards">{product.targets.filter((t) => t.selected).map((target) => <TargetCard key={target.id} target={target} statuses={statuses} busy={busy} onUpdate={onUpdateTarget}/>)}</div> : <div className="empty compact">Select accounts above and save to create account-specific tracking.</div>}</section>
-  </aside></div>;
+  </aside></div>, document.body) : null;
 }
 
 function Info({ label, value }: { label: string; value: any }) { return <div><span>{label}</span><strong>{value == null || value === '' ? '—' : String(value)}</strong></div>; }
