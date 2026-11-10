@@ -1,7 +1,8 @@
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { makeXlsx, type XlsxCell } from '@/lib/xlsx-writer';
 
-export const ENLISTMENT_STATUSES = ['pending','ready','sent','under_review','enlisted','needs_correction','rejected'] as const;
+export const ENLISTMENT_STATUSES = ['pending', 'enlisted', 'delivered_not_enlisted'] as const;
+const DELIVERY_MARKER = 'delivered_not_enlisted';
 export type EnlistmentStatus = typeof ENLISTMENT_STATUSES[number];
 
 export type AccountSummary = { id: string; code: string; name: string };
@@ -46,7 +47,12 @@ export async function getEnlistmentPanelData(input: EnlistmentListQuery = {}) {
     if (hasTargetFilter) {
       query = query.eq('matching_targets.selected', true);
       if (matchingAccount) query = query.eq('matching_targets.account_id', matchingAccount.id);
-      if (status !== 'all') query = query.eq('matching_targets.status', status);
+      if (status === 'enlisted') query = query.eq('matching_targets.status', 'enlisted');
+      else if (status === 'delivered_not_enlisted') query = query.contains('matching_targets.account_fields', { enlistment_stage: DELIVERY_MARKER });
+      else if (status === 'pending') {
+        query = query.neq('matching_targets.status', 'enlisted');
+        query = query.not('matching_targets.account_fields', 'cs', JSON.stringify({ enlistment_stage: DELIVERY_MARKER }));
+      }
     }
     if (search) {
       // Match words independently instead of treating punctuation-normalized input
@@ -169,13 +175,26 @@ export async function updateEnlistmentTarget(input: { targetId: string; status?:
   const supabase = getSupabaseAdmin();
   if (input.status && !ENLISTMENT_STATUSES.includes(input.status as EnlistmentStatus)) throw new Error('Invalid enlistment status.');
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (input.status) {
-    update.status = input.status;
-    if (input.status === 'ready') update.ready_at = new Date().toISOString();
-    if (input.status === 'sent') update.sent_at = new Date().toISOString();
-    if (input.status === 'enlisted') update.enlisted_at = new Date().toISOString();
+  // Merge against the latest persisted JSON so saving Daraz fields never removes the delivery tag.
+  if (input.status || input.accountFields) {
+    const { data: existing, error: readError } = await supabase.from('enlistment_targets')
+      .select('account_fields').eq('id', input.targetId).single();
+    if (readError) throw readError;
+    const fields: Record<string, unknown> = {
+      ...((existing?.account_fields && typeof existing.account_fields === 'object') ? existing.account_fields : {}),
+      ...(input.accountFields || {}),
+    };
+    // The marker is managed only by status updates, not by unrelated field edits.
+    if (input.status === 'delivered_not_enlisted') {
+      update.status = 'pending'; // Uses existing Supabase CHECK constraint; no schema migration.
+      fields.enlistment_stage = DELIVERY_MARKER;
+    } else if (input.status === 'pending' || input.status === 'enlisted') {
+      update.status = input.status;
+      delete fields.enlistment_stage;
+      if (input.status === 'enlisted') update.enlisted_at = new Date().toISOString();
+    }
+    update.account_fields = fields;
   }
-  if (input.accountFields) update.account_fields = input.accountFields;
   if (input.notes !== undefined) update.notes = input.notes || null;
   const { error } = await supabase.from('enlistment_targets').update(update).eq('id', input.targetId);
   if (error) throw error;

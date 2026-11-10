@@ -421,3 +421,41 @@
 .enlistment-drawer-backdrop{z-index:9999!important;pointer-events:auto!important}
 .enlistment-drawer{pointer-events:auto!important;max-height:100dvh}
 .enlistment-drawer-backdrop button,.enlistment-drawer-backdrop input,.enlistment-drawer-backdrop select,.enlistment-drawer-backdrop textarea{pointer-events:auto}
+
+/* Enlistment: three-only business status colors (scoped to the Enlistment page). */
+.enlistment-table .dashboard-badge.enlistment-enlisted,
+.enlistment-status-select.enlistment-enlisted { background:#e4f6ea!important; color:#17693a!important; border:1px solid #a7ddba!important; }
+.enlistment-table .dashboard-badge.enlistment-not-enlisted,
+.enlistment-status-select.enlistment-not-enlisted { background:#fdebea!important; color:#aa3030!important; border:1px solid #efb7b4!important; }
+.enlistment-table .dashboard-badge.enlistment-delivered,
+.enlistment-status-select.enlistment-delivered { background:#fff3cf!important; color:#8b5e0b!important; border:1px solid #f0d17b!important; }
+.enlistment-status-select { font-weight:700; border-radius:9px; padding:8px 11px; min-height:38px; }
+
+/* Enlistment: click a marketplace capsule to edit its three business statuses. */
+.enlistment-status-pills > button.enlistment-clickable-capsule {
+  font-size:9px;white-space:nowrap;font-family:inherit;line-height:1.2;
+  cursor:pointer;padding:5px 8px;transition:filter .15s,box-shadow .15s,transform .15s;
+}
+.enlistment-status-pills > button.enlistment-clickable-capsule:hover,
+.enlistment-status-pills > button.enlistment-clickable-capsule:focus-visible {
+  filter:brightness(.97);box-shadow:0 0 0 2px rgba(37,99,235,.2);outline:2px solid transparent;
+}
+.enlistment-table .enlistment-clickable-capsule.enlistment-enlisted {background:#e4f6ea!important;color:#17693a!important;border:1px solid #a7ddba!important}
+.enlistment-table .enlistment-clickable-capsule.enlistment-not-enlisted {background:#fdebea!important;color:#aa3030!important;border:1px solid #efb7b4!important}
+.enlistment-table .enlistment-clickable-capsule.enlistment-delivered {background:#fff3cf!important;color:#8b5e0b!important;border:1px solid #f0d17b!important}
+.enlistment-quick-editor-layer {position:fixed;inset:0;z-index:10020;pointer-events:none}
+.enlistment-quick-editor-dismiss {position:fixed;inset:0;width:100%;height:100%;border:0;background:transparent;cursor:default;pointer-events:auto}
+.enlistment-quick-editor {position:fixed;width:290px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow:auto;box-sizing:border-box;pointer-events:auto;border:1px solid #dae3f1;border-radius:14px;background:#fff;box-shadow:0 16px 48px rgba(15,33,66,.2);padding:11px;color:#152b4d}
+.enlistment-quick-editor-heading {display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:2px 3px 10px;border-bottom:1px solid #edf0f5}
+.enlistment-quick-editor-heading strong {font-size:13px;display:block}
+.enlistment-quick-editor-heading small {display:block;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#718096;font-size:11px;margin-top:3px}
+.enlistment-quick-editor-heading > button {border:0;background:transparent;color:#66758c;cursor:pointer;padding:3px}
+.enlistment-quick-editor-label {display:block;font-size:10px;letter-spacing:.04em;text-transform:uppercase;font-weight:700;color:#64748b;padding:10px 4px 6px}
+.enlistment-quick-status {width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;border:1px solid transparent;border-radius:9px;padding:9px 10px;margin:3px 0;font-size:11px;font-weight:700;cursor:pointer;line-height:1.3}
+.enlistment-quick-status.enlistment-enlisted {background:#e4f6ea;color:#17693a;border-color:#a7ddba}
+.enlistment-quick-status.enlistment-not-enlisted {background:#fdebea;color:#aa3030;border-color:#efb7b4}
+.enlistment-quick-status.enlistment-delivered {background:#fff3cf;color:#8b5e0b;border-color:#f0d17b}
+.enlistment-quick-status.is-selected {outline:2px solid currentColor;outline-offset:-2px}
+.enlistment-quick-status:disabled {opacity:.6;cursor:wait}
+.enlistment-quick-full-details {display:block;width:100%;margin-top:10px;padding:9px;text-align:center;border:1px solid #dbe4f3;border-radius:9px;background:#f8faff;font-weight:700;color:#234977;font-size:11px;cursor:pointer}
+.enlistment-quick-full-details:hover {background:#ecf3ff}

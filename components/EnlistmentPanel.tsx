@@ -55,13 +55,19 @@ type Preview = {
   sample: { sourceRow: number; barcode: string; name: string; brand: string; category: string; tp: string; mrp: string }[];
 };
 
+// Only three business statuses are visible; historical workflow statuses read as Not Enlisted.
 const statusLabels: Record<string, string> = {
-  pending: 'Pending', ready: 'Ready', sent: 'Sent', under_review: 'Under review', enlisted: 'Enlisted',
-  needs_correction: 'Needs correction', rejected: 'Rejected',
+  pending: 'Not Enlisted', enlisted: 'Enlisted', delivered_not_enlisted: 'Product Delivered but Not Enlisted',
 };
 const statusClass: Record<string, string> = {
-  pending: 'neutral', ready: 'info', sent: 'info', under_review: 'warning', enlisted: 'ok', needs_correction: 'warning', rejected: 'danger',
+  pending: 'enlistment-not-enlisted', enlisted: 'enlistment-enlisted',
+  delivered_not_enlisted: 'enlistment-delivered',
 };
+function statusKey(target: Target): 'pending' | 'enlisted' | 'delivered_not_enlisted' {
+  if (target.status === 'enlisted') return 'enlisted';
+  if (target.account_fields?.enlistment_stage === 'delivered_not_enlisted') return 'delivered_not_enlisted';
+  return 'pending';
+}
 
 function money(value: number | null | undefined) {
   return value == null ? '—' : `৳${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
@@ -92,6 +98,7 @@ export default function EnlistmentPanel() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [openProductId, setOpenProductId] = useState<string | null>(null);
+  const [quickEdit, setQuickEdit] = useState<{ productId: string; targetId: string; top: number; left: number } | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [historyFile, setHistoryFile] = useState<File | null>(null);
@@ -138,12 +145,12 @@ export default function EnlistmentPanel() {
   const enlistedCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && t.status === 'enlisted').length, 0);
   const selectedTaskCount = pendingCount + enlistedCount;
   const unassignedCount = products.filter((p) => !p.targets.some((t) => t.selected)).length;
-  const attentionCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && ['needs_correction', 'rejected'].includes(t.status)).length, 0);
+  const attentionCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && statusKey(t) === 'delivered_not_enlisted').length, 0);
   const completionPct = selectedTaskCount ? Math.round((enlistedCount / selectedTaskCount) * 100) : 0;
   const accountProgress = useMemo(() => accounts.map((account) => {
     const targets = products.flatMap((product) => product.targets).filter((target) => target.selected && target.account?.code === account.code);
     const enlisted = targets.filter((target) => target.status === 'enlisted').length;
-    const attention = targets.filter((target) => ['needs_correction', 'rejected'].includes(target.status)).length;
+    const attention = targets.filter((target) => statusKey(target) === 'delivered_not_enlisted').length;
     return { account, total: targets.length, enlisted, attention, pct: targets.length ? Math.round((enlisted / targets.length) * 100) : 0 };
   }).filter((row) => row.total > 0), [accounts, products]);
 
@@ -216,6 +223,27 @@ export default function EnlistmentPanel() {
     finally { setBusy(false); }
   }
 
+  function openCapsuleEditor(event: React.MouseEvent<HTMLButtonElement>, productId: string, targetId: string) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const width = 290;
+    const height = 232;
+    setQuickEdit((current) => current?.targetId === targetId ? null : {
+      productId,
+      targetId,
+      top: Math.max(8, Math.min(bounds.bottom + 8, window.innerHeight - height - 8)),
+      left: Math.max(8, Math.min(bounds.left, window.innerWidth - width - 8)),
+    });
+  }
+
+  useEffect(() => {
+    if (!quickEdit) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setQuickEdit(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [quickEdit]);
+
   async function updateTarget(target: Target, patch: { status?: string; accountFields?: Record<string, any>; notes?: string }) {
     setBusy(true); setError('');
     try {
@@ -287,7 +315,7 @@ export default function EnlistmentPanel() {
 
     <section className="enlistment-summary-card">
       <div className="enlistment-summary-copy"><span className="eyebrow">Workflow health</span><h2>{completionPct}% of account tasks on this page are enlisted</h2><p>The panel tracks every product-account combination independently. <strong>{pendingCount}</strong> task{pendingCount===1?' is':'s are'} still in progress and <strong>{unassignedCount}</strong> product{unassignedCount===1?' has':'s have'} no target account yet.</p><div className="enlistment-summary-progress"><span style={{ width: `${completionPct}%` }}/></div></div>
-      <div className="enlistment-summary-stats"><div><span>Products on page</span><strong>{products.length}</strong></div><div><span>Account tasks</span><strong>{selectedTaskCount}</strong></div><div><span>Enlisted</span><strong>{enlistedCount}</strong></div><div className={attentionCount ? 'attention' : ''}><span>Needs attention</span><strong>{attentionCount}</strong></div></div>
+      <div className="enlistment-summary-stats"><div><span>Products on page</span><strong>{products.length}</strong></div><div><span>Account tasks</span><strong>{selectedTaskCount}</strong></div><div><span>Enlisted</span><strong>{enlistedCount}</strong></div><div className={attentionCount ? 'attention' : ''}><span>Delivered · not enlisted</span><strong>{attentionCount}</strong></div></div>
     </section>
 
     {accountProgress.length ? <section className="card enlistment-account-progress-card">
@@ -295,7 +323,7 @@ export default function EnlistmentPanel() {
       <div className="enlistment-account-progress-grid">{accountProgress.map(({ account, total, enlisted, attention, pct }) => <button type="button" key={account.code} onClick={() => setAccountFilter(account.code)}>
         <div className="enlistment-account-progress-top"><div><strong>{account.name}</strong><span>{accountFormat(account.code)}</span></div><b>{pct}%</b></div>
         <div className="enlistment-account-progress-track"><span style={{ width: `${pct}%` }}/></div>
-        <div className="enlistment-account-progress-meta"><span>{enlisted}/{total} enlisted</span>{attention ? <span className="attention">{attention} need attention</span> : <span>On track</span>}</div>
+        <div className="enlistment-account-progress-meta"><span>{enlisted}/{total} enlisted</span>{attention ? <span className="attention">{attention} delivered · not enlisted</span> : <span>On track</span>}</div>
       </button>)}</div>
     </section> : null}
 
@@ -324,12 +352,12 @@ export default function EnlistmentPanel() {
     <section className="card enlistment-master-card">
       <div className="card-head"><div><h2>Enlistment master</h2><p>Target accounts are chosen manually. Open a product to manage marketplace-specific progress and Daraz fields.</p></div>{checked.size ? <span className="enlistment-selection-chip">{checked.size} selected</span> : null}</div>
       {loading ? <div className="empty">Loading enlistments…</div> : !products.length ? <div className="empty"><PackagePlus size={28}/><strong>{pagination.total === 0 && (searchTerm || accountFilter !== 'all' || statusFilter !== 'all') ? 'No matching products' : 'No enlistments yet'}</strong><span>{pagination.total === 0 && (searchTerm || accountFilter !== 'all' || statusFilter !== 'all') ? 'Try another search or reset filters.' : 'Upload your UBL product enlistment CSV or XLSX to start.'}</span></div> : <div className="table-wrap"><table className="enlistment-table enlistment-table-polished"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every((p) => checked.has(p.id))} onChange={(e) => setChecked((old) => { const next = new Set(old); filtered.forEach((p) => e.target.checked ? next.add(p.id) : next.delete(p.id)); return next; })}/></th><th>Product</th><th>Barcode</th><th>Commercial</th><th>Account progress</th><th>Updated</th><th></th></tr></thead><tbody>
-        {filtered.map((product) => { const activeTargets = product.targets.filter((t) => t.selected); const productEnlisted = activeTargets.filter((t) => t.status === 'enlisted').length; const progress = activeTargets.length ? Math.round((productEnlisted / activeTargets.length) * 100) : 0; const hasAttention = activeTargets.some((t) => ['needs_correction', 'rejected'].includes(t.status)); return <tr key={product.id} className={openProductId === product.id ? 'active-row' : ''}>
+        {filtered.map((product) => { const activeTargets = product.targets.filter((t) => t.selected); const productEnlisted = activeTargets.filter((t) => t.status === 'enlisted').length; const progress = activeTargets.length ? Math.round((productEnlisted / activeTargets.length) * 100) : 0; const hasAttention = activeTargets.some((t) => statusKey(t) === 'delivered_not_enlisted'); return <tr key={product.id} className={openProductId === product.id ? 'active-row' : ''}>
           <td><input type="checkbox" checked={checked.has(product.id)} onChange={() => toggleCheck(product.id)}/></td>
           <td><div className="enlistment-product-cell"><span className="enlistment-product-mark">{(product.brand || product.name || 'P').slice(0,1).toUpperCase()}</span><div><strong>{product.name}</strong><small>{product.brand || '—'} · {product.category || '—'}</small></div></div></td>
           <td><span className="mono">{product.barcode || '—'}</span></td>
           <td><strong>{money(product.tp)} TP</strong><small>{money(product.mrp)} MRP</small></td>
-          <td>{activeTargets.length ? <div className="enlistment-product-progress"><div className="enlistment-product-progress-head"><span>{productEnlisted}/{activeTargets.length} enlisted</span><b className={hasAttention ? 'attention' : ''}>{hasAttention ? 'Needs attention' : `${progress}%`}</b></div><div className="enlistment-product-progress-track"><span style={{ width: `${progress}%` }}/></div><div className="enlistment-status-pills">{activeTargets.map((target) => <span key={target.id} className={`dashboard-badge ${statusClass[target.status] || 'neutral'}`}>{target.account?.name || 'Account'} · {statusLabels[target.status] || target.status}</span>)}</div></div> : <span className="enlistment-unassigned">No account selected</span>}</td>
+          <td>{activeTargets.length ? <div className="enlistment-product-progress"><div className="enlistment-product-progress-head"><span>{productEnlisted}/{activeTargets.length} enlisted</span><b className={hasAttention ? 'attention' : ''}>{hasAttention ? 'Delivered · not enlisted' : `${progress}%`}</b></div><div className="enlistment-product-progress-track"><span style={{ width: `${progress}%` }}/></div><div className="enlistment-status-pills">{activeTargets.map((target) => <button type="button" key={target.id} className={`dashboard-badge enlistment-clickable-capsule ${statusClass[statusKey(target)]}`} onClick={(event) => openCapsuleEditor(event, product.id, target.id)} aria-label={`Change ${target.account?.name || 'account'} status for ${product.name}`} title="Click to change status">{target.account?.name || 'Account'} · {statusLabels[statusKey(target)]}</button>)}</div></div> : <span className="enlistment-unassigned">No account selected</span>}</td>
           <td>{formatDate(product.updated_at)}</td>
           <td><button className="button secondary compact" onClick={() => setOpenProductId(product.id)}>Manage</button></td>
         </tr>; })}
@@ -345,6 +373,21 @@ export default function EnlistmentPanel() {
       </div>
     </div>
 
+    {quickEdit && (() => {
+      const product = products.find((item) => item.id === quickEdit.productId);
+      const target = product?.targets.find((item) => item.id === quickEdit.targetId);
+      if (!product || !target) return null;
+      return createPortal(<div className="enlistment-quick-editor-layer">
+        <button type="button" className="enlistment-quick-editor-dismiss" aria-label="Close quick editor" onClick={() => setQuickEdit(null)}/>
+        <div className="enlistment-quick-editor" role="dialog" aria-label={`Update ${target.account?.name || 'account'} enlistment status`} style={{ top: quickEdit.top, left: quickEdit.left }}>
+          <div className="enlistment-quick-editor-heading"><div><strong>{target.account?.name || 'Account'}</strong><small>{product.name}</small></div><button type="button" aria-label="Close" onClick={() => setQuickEdit(null)}><X size={15}/></button></div>
+          <span className="enlistment-quick-editor-label">Set enlistment status</span>
+          {(['enlisted', 'pending', 'delivered_not_enlisted'] as const).map((status) => <button type="button" key={status} className={`enlistment-quick-status ${statusClass[status]} ${statusKey(target) === status ? 'is-selected' : ''}`} disabled={busy} onClick={async () => { setQuickEdit(null); await updateTarget(target, { status }); }}><span>{statusLabels[status]}</span>{statusKey(target) === status && <Check size={15}/>}</button>)}
+          <button type="button" className="enlistment-quick-full-details" onClick={() => { setQuickEdit(null); setOpenProductId(product.id); }}>Full account details</button>
+        </div>
+      </div>, document.body);
+    })()}
+
     {openProduct && <ProductDrawer product={openProduct} accounts={accounts} statuses={data?.statuses || []} busy={busy} onClose={() => setOpenProductId(null)} onSetAccounts={setAccounts} onUpdateTarget={updateTarget}/>} 
 
     {!!data?.exports?.length && <section className="card enlistment-history-card"><div className="card-head"><div><h2>Recent exports</h2><p>Prepared marketplace files. Exporting does not automatically change workflow status.</p></div><span className="enlistment-history-count">{data.exports.length} recent</span></div><div className="enlistment-history-list">{data.exports.map((row: any) => <div className="enlistment-history-row" key={row.id}><div className="enlistment-history-file"><span className="enlistment-history-icon"><FileSpreadsheet size={16}/></span><div><strong>{row.file_name}</strong><span>{row.account?.name || 'Account'} · {String(row.export_format || '').toUpperCase()}</span></div></div><div className="enlistment-history-meta"><span>{row.row_count} product{Number(row.row_count)===1?'':'s'}</span><span>{formatDate(row.exported_at)}</span></div></div>)}</div></section>}
@@ -359,7 +402,7 @@ function ProductDrawer({ product, accounts, statuses, busy, onClose, onSetAccoun
   const selectedTargets = product.targets.filter((t) => t.selected);
   const selected = selectedTargets.map((t) => t.account?.code).filter(Boolean) as string[];
   const enlistedTargets = selectedTargets.filter((t) => t.status === 'enlisted').length;
-  const attentionTargets = selectedTargets.filter((t) => ['needs_correction', 'rejected'].includes(t.status)).length;
+  const attentionTargets = selectedTargets.filter((t) => statusKey(t) === 'delivered_not_enlisted').length;
   const drawerProgress = selectedTargets.length ? Math.round((enlistedTargets / selectedTargets.length) * 100) : 0;
   const [chosen, setChosen] = useState<string[]>(selected);
 
@@ -380,7 +423,7 @@ function ProductDrawer({ product, accounts, statuses, busy, onClose, onSetAccoun
 
   return drawerMounted ? createPortal(<div className="enlistment-drawer-backdrop" onMouseDown={(e) => { if (e.currentTarget === e.target) onClose(); }}><aside className="enlistment-drawer">
     <div className="enlistment-drawer-head"><div><span className="eyebrow">Enlistment detail</span><h2>{product.name}</h2><p>{product.brand || '—'} · {product.barcode || 'No barcode'}</p></div><button className="icon-button" onClick={onClose}><X size={20}/></button></div>
-    <div className="enlistment-drawer-summary"><div><span>Target accounts</span><strong>{selectedTargets.length}</strong></div><div><span>Enlisted</span><strong>{enlistedTargets}</strong></div><div><span>Completion</span><strong>{drawerProgress}%</strong></div><div className={attentionTargets ? 'attention' : ''}><span>Needs attention</span><strong>{attentionTargets}</strong></div><div className="enlistment-drawer-progress"><span style={{ width: `${drawerProgress}%` }}/></div></div>
+    <div className="enlistment-drawer-summary"><div><span>Target accounts</span><strong>{selectedTargets.length}</strong></div><div><span>Enlisted</span><strong>{enlistedTargets}</strong></div><div><span>Completion</span><strong>{drawerProgress}%</strong></div><div className={attentionTargets ? 'attention' : ''}><span>Delivered · not enlisted</span><strong>{attentionTargets}</strong></div><div className="enlistment-drawer-progress"><span style={{ width: `${drawerProgress}%` }}/></div></div>
 
     <section className="enlistment-drawer-section"><h3>Product information</h3><div className="enlistment-info-grid">
       <Info label="Category" value={product.category}/><Info label="TP" value={money(product.tp)}/><Info label="MRP" value={money(product.mrp)}/><Info label="Shelf life" value={product.shelf_life_days == null ? null : `${product.shelf_life_days} days`}/><Info label="Pcs per CRM" value={product.pcs_per_crm}/><Info label="Country" value={product.country_of_origin}/><Info label="Supplier" value={product.supplier_name}/><Info label="Certification" value={product.cert_license}/><Info label="Source status" value={product.source_status}/>
@@ -403,7 +446,7 @@ function TargetCard({ target, statuses, busy, onUpdate }: { key?: string; target
 
   const set = (key: string, value: string) => setFields((old) => ({ ...old, [key]: value }));
   return <div className="enlistment-target-card">
-    <div className="enlistment-target-head"><div><strong>{target.account?.name || 'Account'}</strong><span>{accountFormat(code)}</span></div><select value={target.status} onChange={(e) => void onUpdate(target, { status: e.target.value })} disabled={busy}>{statuses.map((s) => <option key={s} value={s}>{statusLabels[s] || s}</option>)}</select></div>
+    <div className="enlistment-target-head"><div><strong>{target.account?.name || 'Account'}</strong><span>{accountFormat(code)}</span></div><select className={`enlistment-status-select ${statusClass[statusKey(target)]}`} value={statusKey(target)} onChange={(e) => void onUpdate(target, { status: e.target.value })} disabled={busy}>{statuses.map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}</select></div>
     {daraz && <div className="daraz-extra-fields"><p>Daraz-specific fields</p><div className="daraz-extra-grid">
       <Field label="Product Weight" value={fields.product_weight} onChange={(v) => set('product_weight', v)}/><Field label="New Shop SKU" value={fields.new_shop_sku} onChange={(v) => set('new_shop_sku', v)}/><Field label="Daraz Seller SKU" value={fields.daraz_seller_sku} onChange={(v) => set('daraz_seller_sku', v)}/><Field label="NEW SP" value={fields.new_sp} onChange={(v) => set('new_sp', v)}/><Field label="NEW COGP override" value={fields.new_cogp} onChange={(v) => set('new_cogp', v)} placeholder="Auto: TP ÷ 1.05"/><Field label="Supplier Code" value={fields.supplier_code} onChange={(v) => set('supplier_code', v)}/>
       <label><span>Product Type</span><select value={fields.product_type || ''} onChange={(e) => set('product_type', e.target.value)}><option value="">Choose…</option><option>Food</option><option>Liquid</option><option>Dangerous Goods</option><option>Other</option></select></label>
