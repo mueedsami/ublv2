@@ -9,8 +9,9 @@ export async function GET(request: Request) {
   const search = url.searchParams.get('search') || '';
   const account = url.searchParams.get('account') || 'all';
   const status = url.searchParams.get('status') || 'all';
+  const visibility = url.searchParams.get('visibility') || 'visible';
   try {
-    return NextResponse.json(await getEnlistmentPanelData({ page, search, account, status }));
+    return NextResponse.json(await getEnlistmentPanelData({ page, search, account, status, visibility }));
   } catch (error) {
     console.error('Enlistment panel load failed:', error);
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load enlistment panel.' }, { status: 500 });

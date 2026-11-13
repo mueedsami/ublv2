@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Download, FileSpreadsheet, PackagePlus, RefreshCw, RotateCcw, Search, Upload, X } from 'lucide-react';
+import { Check, Download, Eye, EyeOff, FileSpreadsheet, PackagePlus, RefreshCw, RotateCcw, Search, Upload, X } from 'lucide-react';
 
 type Account = { id: string; code: string; name: string };
 type Target = {
@@ -18,6 +18,7 @@ type Target = {
 };
 type Product = {
   id: string;
+  active: boolean;
   barcode: string | null;
   name: string;
   brand: string | null;
@@ -96,6 +97,7 @@ export default function EnlistmentPanel() {
   const [page, setPage] = useState(1);
   const [accountFilter, setAccountFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [visibility, setVisibility] = useState<'visible' | 'hidden'>('visible');
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [openProductId, setOpenProductId] = useState<string | null>(null);
   const [quickEdit, setQuickEdit] = useState<{ productId: string; targetId: string; top: number; left: number } | null>(null);
@@ -112,7 +114,7 @@ export default function EnlistmentPanel() {
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ page: String(nextPage), search: nextSearch, account: nextAccount, status: nextStatus });
+      const params = new URLSearchParams({ page: String(nextPage), search: nextSearch, account: nextAccount, status: nextStatus, visibility });
       const res = await fetch(`/api/enlistment?${params}`, { cache: 'no-store' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load enlistment panel.');
@@ -130,7 +132,7 @@ export default function EnlistmentPanel() {
     return () => clearTimeout(timer);
   }, [query]);
   useEffect(() => { setPage(1); }, [searchTerm]);
-  useEffect(() => { setChecked(new Set()); void load(page, searchTerm, accountFilter, statusFilter); }, [page, searchTerm, accountFilter, statusFilter]);
+  useEffect(() => { setChecked(new Set()); void load(page, searchTerm, accountFilter, statusFilter); }, [page, searchTerm, accountFilter, statusFilter, visibility]);
 
   const products = data?.products || [];
   const accounts = data?.accounts || [];
@@ -141,9 +143,9 @@ export default function EnlistmentPanel() {
   const pagination = data?.pagination || { page, pageSize: 50, total: 0, pages: 1 };
   const selectedProducts = products.filter((p) => checked.has(p.id));
   const exportEligible = selectedProducts.filter((p) => p.targets.some((t) => t.selected && t.account?.code === exportAccount));
-  const pendingCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && t.status !== 'enlisted').length, 0);
+  const pendingCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && statusKey(t) === 'pending').length, 0);
   const enlistedCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && t.status === 'enlisted').length, 0);
-  const selectedTaskCount = pendingCount + enlistedCount;
+  const selectedTaskCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected).length, 0);
   const unassignedCount = products.filter((p) => !p.targets.some((t) => t.selected)).length;
   const attentionCount = products.reduce((sum, p) => sum + p.targets.filter((t) => t.selected && statusKey(t) === 'delivered_not_enlisted').length, 0);
   const completionPct = selectedTaskCount ? Math.round((enlistedCount / selectedTaskCount) * 100) : 0;
@@ -151,7 +153,7 @@ export default function EnlistmentPanel() {
     const targets = products.flatMap((product) => product.targets).filter((target) => target.selected && target.account?.code === account.code);
     const enlisted = targets.filter((target) => target.status === 'enlisted').length;
     const attention = targets.filter((target) => statusKey(target) === 'delivered_not_enlisted').length;
-    return { account, total: targets.length, enlisted, attention, pct: targets.length ? Math.round((enlisted / targets.length) * 100) : 0 };
+    return { account, total: targets.length, enlisted, attention, notEnlisted: targets.filter((target) => statusKey(target) === 'pending').length, pct: targets.length ? Math.round((enlisted / targets.length) * 100) : 0 };
   }).filter((row) => row.total > 0), [accounts, products]);
 
   async function historicalImport(file: File, commit = false) {
@@ -208,6 +210,48 @@ export default function EnlistmentPanel() {
       const json = await res.json(); if (!res.ok) throw new Error(json.error || 'Failed to save target accounts.');
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to save target accounts.'); }
+    finally { setBusy(false); }
+  }
+
+  async function changeVisibility(productIds: string[], visible: boolean) {
+    if (!productIds.length) return;
+    const label = visible ? 'restore to the active list' : 'hide from the active Enlistment list';
+    if (!window.confirm(`Do you want to ${label} ${productIds.length} product(s)? No product or account data will be deleted.`)) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const res = await fetch('/api/enlistment/targets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-product-visibility', productIds, visible }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to update product visibility.');
+      setChecked(new Set()); setOpenProductId(null); setQuickEdit(null);
+      setNotice(`${productIds.length} product(s) ${visible ? 'restored' : 'hidden'}. All database records and account statuses are preserved.`);
+      if (page !== 1) setPage(1);
+      else await load(1);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not change visibility.'); }
+    finally { setBusy(false); }
+  }
+
+  async function changeAllMatchingVisibility() {
+    if (busy || loading || pagination.total < 1) return;
+    if (pagination.total > 5000) { setError('For safety, bulk visibility is limited to 5,000 matching products. Narrow your filters.'); return; }
+    const nextVisible = visibility === 'hidden';
+    const verb = nextVisible ? 'RESTORE' : 'HIDE';
+    const criteria = [searchTerm && `Search: ${searchTerm}`, accountFilter !== 'all' && `Account: ${accountFilter}`, statusFilter !== 'all' && `Status: ${statusFilter}`].filter(Boolean).join(' | ') || 'No filters (entire current visibility list)';
+    if (!window.confirm(`${verb} ALL ${pagination.total} matching products across ${pagination.pages} page(s)?\n\n${criteria}\n\nThis only changes visibility, not database records or account statuses.`)) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const res = await fetch('/api/enlistment/targets', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set-matching-product-visibility', visible: nextVisible, expectedCount: pagination.total, filters: { search: searchTerm, account: accountFilter, status: statusFilter, visibility } }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Bulk visibility update failed.');
+      setChecked(new Set()); setOpenProductId(null); setQuickEdit(null);
+      setNotice(`${json.updated} matching products ${nextVisible ? 'restored' : 'hidden'}. Database records and statuses were retained.`);
+      if (page !== 1) setPage(1); else await load(1);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not update matching products.'); }
     finally { setBusy(false); }
   }
 
@@ -314,27 +358,39 @@ export default function EnlistmentPanel() {
     </section>}
 
     <section className="enlistment-summary-card">
-      <div className="enlistment-summary-copy"><span className="eyebrow">Workflow health</span><h2>{completionPct}% of account tasks on this page are enlisted</h2><p>The panel tracks every product-account combination independently. <strong>{pendingCount}</strong> task{pendingCount===1?' is':'s are'} still in progress and <strong>{unassignedCount}</strong> product{unassignedCount===1?' has':'s have'} no target account yet.</p><div className="enlistment-summary-progress"><span style={{ width: `${completionPct}%` }}/></div></div>
-      <div className="enlistment-summary-stats"><div><span>Products on page</span><strong>{products.length}</strong></div><div><span>Account tasks</span><strong>{selectedTaskCount}</strong></div><div><span>Enlisted</span><strong>{enlistedCount}</strong></div><div className={attentionCount ? 'attention' : ''}><span>Delivered · not enlisted</span><strong>{attentionCount}</strong></div></div>
+      <div className="enlistment-summary-copy"><span className="eyebrow">Workflow health</span><h2>{completionPct}% of account tasks on this page are enlisted</h2><p>Current page · <strong>{enlistedCount}/{selectedTaskCount}</strong> enlisted · <strong>{pendingCount}/{selectedTaskCount}</strong> not enlisted · <strong>{attentionCount}/{selectedTaskCount}</strong> delivered but not enlisted. <strong>{unassignedCount}</strong> products have no selected account.</p><div className="enlistment-summary-progress"><span style={{ width: `${completionPct}%` }}/></div></div>
+      <div className="enlistment-summary-stats"><div><span>Products on page</span><strong>{products.length}</strong></div><div><span>Account tasks</span><strong>{selectedTaskCount}</strong></div><div><span>Enlisted</span><strong>{enlistedCount}/{selectedTaskCount}</strong></div><div><span>Not enlisted</span><strong>{pendingCount}/{selectedTaskCount}</strong></div><div className={attentionCount ? 'attention' : ''}><span>Delivered · not enlisted</span><strong>{attentionCount}/{selectedTaskCount}</strong></div></div>
     </section>
 
     {accountProgress.length ? <section className="card enlistment-account-progress-card">
       <div className="card-head"><div><h2>Account progress — current page</h2><p>Progress for products shown on this page. Use filters to view other products.</p></div></div>
-      <div className="enlistment-account-progress-grid">{accountProgress.map(({ account, total, enlisted, attention, pct }) => <button type="button" key={account.code} onClick={() => setAccountFilter(account.code)}>
+      <div className="enlistment-account-progress-grid">{accountProgress.map(({ account, total, enlisted, notEnlisted, attention, pct }) => <button type="button" key={account.code} onClick={() => setAccountFilter(account.code)}>
         <div className="enlistment-account-progress-top"><div><strong>{account.name}</strong><span>{accountFormat(account.code)}</span></div><b>{pct}%</b></div>
         <div className="enlistment-account-progress-track"><span style={{ width: `${pct}%` }}/></div>
-        <div className="enlistment-account-progress-meta"><span>{enlisted}/{total} enlisted</span>{attention ? <span className="attention">{attention} delivered · not enlisted</span> : <span>On track</span>}</div>
+        <div className="enlistment-account-progress-meta"><span>{enlisted}/{total} enlisted</span><span>{notEnlisted}/{total} not enlisted</span><span className={attention ? 'attention' : ''}>{attention}/{total} delivered · not enlisted</span></div>
       </button>)}</div>
     </section> : null}
 
     <section className="card enlistment-filter-card">
-      <div className="enlistment-workbench-head"><div><span className="eyebrow">Product workbench</span><strong>{pagination.total} matching products · {products.length} on this page</strong></div><button type="button" className="account-reset-button" onClick={() => { setPage(1); setQuery(''); setSearchTerm(''); setAccountFilter('all'); setStatusFilter('all'); }}><RotateCcw size={14}/>Reset filters</button></div>
+      <div className="enlistment-workbench-head"><div><span className="eyebrow">Product workbench</span><strong>{pagination.total} {visibility === 'visible' ? 'active' : 'hidden'} matching products · {products.length} on this page</strong></div><button type="button" className="account-reset-button" onClick={() => { setPage(1); setQuery(''); setSearchTerm(''); setAccountFilter('all'); setStatusFilter('all'); }}><RotateCcw size={14}/>Reset filters</button></div>
       <div className="enlistment-filter-row">
         <label className="enlistment-search"><span>Search</span><div className="search-box"><Search size={16}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Product, barcode, brand or category"/></div></label>
         <label><span>Target account</span><select value={accountFilter} onChange={(e) => { setPage(1); setAccountFilter(e.target.value); }}><option value="all">All accounts</option>{accounts.map((a) => <option key={a.id} value={a.code}>{a.name}</option>)}</select></label>
         <label><span>Status</span><select value={statusFilter} onChange={(e) => { setPage(1); setStatusFilter(e.target.value); }}><option value="all">All statuses</option>{(data?.statuses || []).map((s) => <option key={s} value={s}>{statusLabels[s] || s}</option>)}</select></label>
+        <label><span>Product visibility</span><select value={visibility} onChange={(e) => { setPage(1); setChecked(new Set()); setVisibility(e.target.value as 'visible' | 'hidden'); }}><option value="visible">Active products</option><option value="hidden">Hidden products (restore)</option></select></label>
       </div>
     </section>
+
+    <div className="enlistment-visibility-toolbar">
+      <div><strong>{visibility === 'visible' ? 'Active Enlistment products' : 'Hidden products'}</strong><span>{visibility === 'visible' ? 'Hide old products without deleting them. Switch to Hidden products to restore.' : 'These products remain in the database with all account histories intact.'}</span></div>
+      <button type="button" className="button secondary compact" disabled={busy || !checked.size} onClick={() => void changeVisibility([...checked], visibility !== 'visible')}>
+        {visibility === 'visible' ? <EyeOff size={15}/> : <Eye size={15}/>} {visibility === 'visible' ? `Hide ${checked.size} selected` : `Restore ${checked.size} selected`}
+      </button>
+      <button type="button" className="button secondary compact" disabled={busy || loading || pagination.total === 0} onClick={() => void changeAllMatchingVisibility()} title="Applies to every matching product across all pages; requires confirmation">
+        {visibility === 'visible' ? <EyeOff size={15}/> : <Eye size={15}/>} {visibility === 'visible' ? `Hide all ${pagination.total} matching` : `Restore all ${pagination.total} matching`}
+      </button>
+      {checked.size > 0 && <button type="button" className="button secondary compact" onClick={() => setChecked(new Set())} disabled={busy}>Clear selection</button>}
+    </div>
 
     <section className="enlistment-action-grid">
       <div className="card enlistment-action-card">
@@ -351,15 +407,15 @@ export default function EnlistmentPanel() {
 
     <section className="card enlistment-master-card">
       <div className="card-head"><div><h2>Enlistment master</h2><p>Target accounts are chosen manually. Open a product to manage marketplace-specific progress and Daraz fields.</p></div>{checked.size ? <span className="enlistment-selection-chip">{checked.size} selected</span> : null}</div>
-      {loading ? <div className="empty">Loading enlistments…</div> : !products.length ? <div className="empty"><PackagePlus size={28}/><strong>{pagination.total === 0 && (searchTerm || accountFilter !== 'all' || statusFilter !== 'all') ? 'No matching products' : 'No enlistments yet'}</strong><span>{pagination.total === 0 && (searchTerm || accountFilter !== 'all' || statusFilter !== 'all') ? 'Try another search or reset filters.' : 'Upload your UBL product enlistment CSV or XLSX to start.'}</span></div> : <div className="table-wrap"><table className="enlistment-table enlistment-table-polished"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every((p) => checked.has(p.id))} onChange={(e) => setChecked((old) => { const next = new Set(old); filtered.forEach((p) => e.target.checked ? next.add(p.id) : next.delete(p.id)); return next; })}/></th><th>Product</th><th>Barcode</th><th>Commercial</th><th>Account progress</th><th>Updated</th><th></th></tr></thead><tbody>
-        {filtered.map((product) => { const activeTargets = product.targets.filter((t) => t.selected); const productEnlisted = activeTargets.filter((t) => t.status === 'enlisted').length; const progress = activeTargets.length ? Math.round((productEnlisted / activeTargets.length) * 100) : 0; const hasAttention = activeTargets.some((t) => statusKey(t) === 'delivered_not_enlisted'); return <tr key={product.id} className={openProductId === product.id ? 'active-row' : ''}>
+      {loading ? <div className="empty">Loading enlistments…</div> : !products.length ? <div className="empty"><PackagePlus size={28}/><strong>{pagination.total === 0 && (searchTerm || accountFilter !== 'all' || statusFilter !== 'all') ? 'No matching products' : visibility === 'hidden' ? 'No hidden products' : 'No enlistments yet'}</strong><span>{pagination.total === 0 && (searchTerm || accountFilter !== 'all' || statusFilter !== 'all') ? 'Try another search or reset filters.' : 'Upload your UBL product enlistment CSV or XLSX to start.'}</span></div> : <div className="table-wrap"><table className="enlistment-table enlistment-table-polished"><thead><tr><th><input type="checkbox" checked={filtered.length > 0 && filtered.every((p) => checked.has(p.id))} onChange={(e) => setChecked((old) => { const next = new Set(old); filtered.forEach((p) => e.target.checked ? next.add(p.id) : next.delete(p.id)); return next; })}/></th><th>Product</th><th>Barcode</th><th>Commercial</th><th>Account progress</th><th>Updated</th><th></th></tr></thead><tbody>
+        {filtered.map((product) => { const activeTargets = product.targets.filter((t) => t.selected); const productEnlisted = activeTargets.filter((t) => statusKey(t) === 'enlisted').length; const productNotEnlisted = activeTargets.filter((t) => statusKey(t) === 'pending').length; const productDelivered = activeTargets.filter((t) => statusKey(t) === 'delivered_not_enlisted').length; const progress = activeTargets.length ? Math.round((productEnlisted / activeTargets.length) * 100) : 0; const hasAttention = activeTargets.some((t) => statusKey(t) === 'delivered_not_enlisted'); return <tr key={product.id} className={openProductId === product.id ? 'active-row' : ''}>
           <td><input type="checkbox" checked={checked.has(product.id)} onChange={() => toggleCheck(product.id)}/></td>
           <td><div className="enlistment-product-cell"><span className="enlistment-product-mark">{(product.brand || product.name || 'P').slice(0,1).toUpperCase()}</span><div><strong>{product.name}</strong><small>{product.brand || '—'} · {product.category || '—'}</small></div></div></td>
           <td><span className="mono">{product.barcode || '—'}</span></td>
           <td><strong>{money(product.tp)} TP</strong><small>{money(product.mrp)} MRP</small></td>
-          <td>{activeTargets.length ? <div className="enlistment-product-progress"><div className="enlistment-product-progress-head"><span>{productEnlisted}/{activeTargets.length} enlisted</span><b className={hasAttention ? 'attention' : ''}>{hasAttention ? 'Delivered · not enlisted' : `${progress}%`}</b></div><div className="enlistment-product-progress-track"><span style={{ width: `${progress}%` }}/></div><div className="enlistment-status-pills">{activeTargets.map((target) => <button type="button" key={target.id} className={`dashboard-badge enlistment-clickable-capsule ${statusClass[statusKey(target)]}`} onClick={(event) => openCapsuleEditor(event, product.id, target.id)} aria-label={`Change ${target.account?.name || 'account'} status for ${product.name}`} title="Click to change status">{target.account?.name || 'Account'} · {statusLabels[statusKey(target)]}</button>)}</div></div> : <span className="enlistment-unassigned">No account selected</span>}</td>
+          <td>{activeTargets.length ? <div className="enlistment-product-progress"><div className="enlistment-product-progress-head"><span className="enlistment-row-counts"><b className="enlistment-count-enlisted">{productEnlisted}/{activeTargets.length} enlisted</b><b className="enlistment-count-not">{productNotEnlisted}/{activeTargets.length} not enlisted</b><b className="enlistment-count-delivered">{productDelivered}/{activeTargets.length} delivered · not enlisted</b></span><b className={hasAttention ? 'attention' : ''}>{progress}%</b></div><div className="enlistment-product-progress-track"><span style={{ width: `${progress}%` }}/></div><div className="enlistment-status-pills">{activeTargets.map((target) => <button type="button" key={target.id} className={`dashboard-badge enlistment-clickable-capsule ${statusClass[statusKey(target)]}`} onClick={(event) => openCapsuleEditor(event, product.id, target.id)} aria-label={`Change ${target.account?.name || 'account'} status for ${product.name}`} title="Click to change status">{target.account?.name || 'Account'} · {statusLabels[statusKey(target)]}</button>)}</div></div> : <span className="enlistment-unassigned">No account selected</span>}</td>
           <td>{formatDate(product.updated_at)}</td>
-          <td><button className="button secondary compact" onClick={() => setOpenProductId(product.id)}>Manage</button></td>
+          <td><div className="enlistment-row-actions"><button className="button secondary compact" onClick={() => setOpenProductId(product.id)}>Manage</button><button type="button" className="button secondary compact enlistment-hide-btn" disabled={busy} onClick={() => void changeVisibility([product.id], visibility !== 'visible')}>{visibility === 'visible' ? <EyeOff size={14}/> : <Eye size={14}/>} {visibility === 'visible' ? 'Hide' : 'Restore'}</button></div></td>
         </tr>; })}
       </tbody></table></div>}
     </section>
@@ -423,7 +479,7 @@ function ProductDrawer({ product, accounts, statuses, busy, onClose, onSetAccoun
 
   return drawerMounted ? createPortal(<div className="enlistment-drawer-backdrop" onMouseDown={(e) => { if (e.currentTarget === e.target) onClose(); }}><aside className="enlistment-drawer">
     <div className="enlistment-drawer-head"><div><span className="eyebrow">Enlistment detail</span><h2>{product.name}</h2><p>{product.brand || '—'} · {product.barcode || 'No barcode'}</p></div><button className="icon-button" onClick={onClose}><X size={20}/></button></div>
-    <div className="enlistment-drawer-summary"><div><span>Target accounts</span><strong>{selectedTargets.length}</strong></div><div><span>Enlisted</span><strong>{enlistedTargets}</strong></div><div><span>Completion</span><strong>{drawerProgress}%</strong></div><div className={attentionTargets ? 'attention' : ''}><span>Delivered · not enlisted</span><strong>{attentionTargets}</strong></div><div className="enlistment-drawer-progress"><span style={{ width: `${drawerProgress}%` }}/></div></div>
+    <div className="enlistment-drawer-summary"><div><span>Target accounts</span><strong>{selectedTargets.length}</strong></div><div><span>Enlisted</span><strong>{enlistedTargets}/{selectedTargets.length}</strong></div><div><span>Not enlisted</span><strong>{selectedTargets.filter((t) => statusKey(t) === 'pending').length}/{selectedTargets.length}</strong></div><div><span>Completion</span><strong>{drawerProgress}%</strong></div><div className={attentionTargets ? 'attention' : ''}><span>Delivered · not enlisted</span><strong>{attentionTargets}/{selectedTargets.length}</strong></div><div className="enlistment-drawer-progress"><span style={{ width: `${drawerProgress}%` }}/></div></div>
 
     <section className="enlistment-drawer-section"><h3>Product information</h3><div className="enlistment-info-grid">
       <Info label="Category" value={product.category}/><Info label="TP" value={money(product.tp)}/><Info label="MRP" value={money(product.mrp)}/><Info label="Shelf life" value={product.shelf_life_days == null ? null : `${product.shelf_life_days} days`}/><Info label="Pcs per CRM" value={product.pcs_per_crm}/><Info label="Country" value={product.country_of_origin}/><Info label="Supplier" value={product.supplier_name}/><Info label="Certification" value={product.cert_license}/><Info label="Source status" value={product.source_status}/>

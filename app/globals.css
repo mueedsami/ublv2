@@ -459,3 +459,21 @@
 .enlistment-quick-status:disabled {opacity:.6;cursor:wait}
 .enlistment-quick-full-details {display:block;width:100%;margin-top:10px;padding:9px;text-align:center;border:1px solid #dbe4f3;border-radius:9px;background:#f8faff;font-weight:700;color:#234977;font-size:11px;cursor:pointer}
 .enlistment-quick-full-details:hover {background:#ecf3ff}
+
+
+/* Enlistment counts and reversible visibility actions — November 10 */
+.enlistment-row-counts{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:11px;font-weight:600}
+.enlistment-row-counts b{font-size:11px;font-weight:650;white-space:nowrap}
+.enlistment-count-enlisted{color:#177245}.enlistment-count-not{color:#b4232b}.enlistment-count-delivered{color:#96600d}
+.enlistment-row-actions{display:flex;flex-direction:column;align-items:stretch;gap:7px;min-width:85px}
+.enlistment-hide-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
+.enlistment-visibility-toolbar{margin:10px 0 14px;padding:12px 16px;border:1px solid #dce4f0;background:#f8fafd;border-radius:12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.enlistment-visibility-toolbar>div{display:flex;flex-direction:column;gap:3px}
+.enlistment-visibility-toolbar strong{font-size:13px;color:#142849}
+.enlistment-visibility-toolbar span{font-size:12px;color:#667995}
+.enlistment-account-progress-meta{flex-wrap:wrap;gap:4px 10px}
+@media(max-width:760px){.enlistment-visibility-toolbar{align-items:stretch;flex-direction:column}.enlistment-row-counts{flex-direction:column;align-items:flex-start;gap:3px}}
+
+/* Enlistment bulk visibility toolbar: keep both batch actions accessible. */
+.enlistment-visibility-toolbar { flex-wrap: wrap; gap: 10px; }
+.enlistment-visibility-toolbar > div:first-child { flex: 1 1 260px; }

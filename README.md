@@ -1,17 +1,19 @@
-# Shajgoj Tertiary September Import Fix
+# Enlistment Bulk Hide — changed files only
 
-Replace only `lib/tertiary-parser.ts` in your Next.js project with the matching file in this patch. Restart `npm run dev`.
+Replace exactly these four paths in your Next.js application:
 
-This fixes the uploaded `Shajgoj September.xlsx` format:
-- Column I has an Excel **date header** (serial 46266 = September 1, 2026). The parser now selects the column by matching the requested month, rather than expecting the text `September 2026`.
-- Column K (`Total Sold`) supplies reported revenue; column I supplies units sold.
-- Identical duplicate SKU lines with the same quantity and revenue are safely deduplicated without double counting. Specifically, SKU `36810`, rows 130 and 131, repeats the same 5 units and 401 reported revenue, despite a slightly different name. Conflicting duplicates still block approval.
+- `components/EnlistmentPanel.tsx`
+- `lib/enlistment-data.ts`
+- `app/api/enlistment/targets/route.ts`
+- `app/globals.css`
 
-### Test
-1. Tertiary Report → Account-wise Uploads.
-2. Account = Shajgoj; month = 2026-09.
-3. Upload `Shajgoj September.xlsx`; leave Sheet name blank (it is `shajgoj`).
-4. Click **Inspect & Preview Upload**. Check its sales quantities and revenue before approving.
-5. Click **Approve Monthly Import**.
+## Bulk actions
 
-No Supabase migration required; other accounts and Sales & Stock imports are unchanged.
+- Select individual product rows (or header checkbox for all 50 on current page), then **Hide N selected**.
+- **Hide all N matching** hides all products matching search/account/status filters across every page. Requires confirmation, max 5,000 per action.
+- Switch Product visibility to **Hidden products**, then use equivalent Restore actions.
+- Filters are applied server-side before selecting product IDs. The API checks the count and distinct IDs before making changes.
+- Existing Supabase `enlistment_products.active` flag is updated. No product or account row is deleted. This visibility setting is shared by all dashboard users.
+- The server updates in batches of 200; an interrupted/failed multi-batch request may have partially updated records. Check the hidden view if an error occurs.
+
+Test on local Next.js before deployment. No migration required.

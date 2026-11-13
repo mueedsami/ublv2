@@ -12,6 +12,7 @@ export type EnlistmentListQuery = {
   search?: string;
   account?: string;
   status?: string;
+  visibility?: string;
 };
 
 /** Loads a page of products, then loads ALL mappings belonging to those products. */
@@ -22,6 +23,7 @@ export async function getEnlistmentPanelData(input: EnlistmentListQuery = {}) {
   const search = String(input.search || '').trim().slice(0, 120);
   const accountCode = String(input.account || 'all');
   const status = String(input.status || 'all');
+  const visibility = input.visibility === 'hidden' ? 'hidden' : 'visible';
 
   const [{ data: accounts, error: accountError }, { data: imports }, { data: exports }] = await Promise.all([
     supabase.from('accounts').select('id,code,name').order('name'),
@@ -43,7 +45,7 @@ export async function getEnlistmentPanelData(input: EnlistmentListQuery = {}) {
     // This makes account/status filtering accurate across the entire catalog.
     let query = supabase.from('enlistment_products')
       .select(hasTargetFilter ? '*,matching_targets:enlistment_targets!inner(id)' : '*', { count: 'exact' })
-      .eq('active', true);
+      .eq('active', visibility === 'visible');
     if (hasTargetFilter) {
       query = query.eq('matching_targets.selected', true);
       if (matchingAccount) query = query.eq('matching_targets.account_id', matchingAccount.id);
@@ -116,6 +118,42 @@ export async function getEnlistmentPanelData(input: EnlistmentListQuery = {}) {
     exports: exportRows,
     statuses: ENLISTMENT_STATUSES,
   };
+}
+
+/** Updates every product matching the current Enlistment filters (not just the visible 50). */
+export async function setMatchingEnlistmentProductVisibility(
+  filters: EnlistmentListQuery,
+  visible: boolean,
+  expectedCount: number,
+) {
+  if (filters.visibility !== (visible ? 'hidden' : 'visible')) throw new Error('Source visibility mismatch. Refresh the page.');
+  if (!Number.isSafeInteger(expectedCount) || expectedCount < 1 || expectedCount > 5000) throw new Error('Bulk visibility limit is 5,000 products.');
+  const first = await getEnlistmentPanelData({ ...filters, page: 1 });
+  if (first.pagination.total !== expectedCount) throw new Error('The matching product count changed. Refresh and try again.');
+  const ids = first.products.map((p: any) => String(p.id));
+  for (let page = 2; page <= first.pagination.pages; page++) {
+    const result = await getEnlistmentPanelData({ ...filters, page });
+    if (result.pagination.total !== expectedCount) throw new Error('Product count changed during selection. Refresh and try again.');
+    ids.push(...result.products.map((p: any) => String(p.id)));
+  }
+  if (ids.length !== expectedCount || new Set(ids).size !== expectedCount) throw new Error('Incomplete or overlapping product pages. No changes were made.');
+  // The existing update function enforces a 200-product bound for each batch.
+  let updated = 0;
+  for (let i = 0; i < ids.length; i += 200) updated += await setEnlistmentProductVisibility(ids.slice(i, i + 200), visible);
+  return updated;
+}
+
+/** Reversible visibility control. Does not delete products or account mappings. */
+export async function setEnlistmentProductVisibility(productIds: string[], visible: boolean) {
+  if (!Array.isArray(productIds) || !productIds.length || productIds.length > 200) throw new Error('Select 1–200 products.');
+  if (productIds.some((id) => typeof id !== 'string' || !/^[0-9a-f-]{10,}$/i.test(id))) throw new Error('Invalid product ID.');
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.from('enlistment_products')
+    .update({ active: visible, updated_at: new Date().toISOString() })
+    .in('id', productIds).select('id');
+  if (error) throw error;
+  if (!data || data.length !== productIds.length) throw new Error('Some products could not be updated. Refresh and check the list.');
+  return data.length;
 }
 
 export async function setProductAccounts(productId: string, accountCodes: string[]) {
