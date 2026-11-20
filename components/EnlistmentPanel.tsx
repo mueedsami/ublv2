@@ -70,6 +70,11 @@ function statusKey(target: Target): 'pending' | 'enlisted' | 'delivered_not_enli
   return 'pending';
 }
 
+function validProductUrl(value: string): boolean {
+  try { const url = new URL(value.trim()); return url.protocol === 'https:' || url.protocol === 'http:'; }
+  catch { return false; }
+}
+
 function money(value: number | null | undefined) {
   return value == null ? '—' : `৳${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
@@ -101,6 +106,8 @@ export default function EnlistmentPanel() {
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [openProductId, setOpenProductId] = useState<string | null>(null);
   const [quickEdit, setQuickEdit] = useState<{ productId: string; targetId: string; top: number; left: number } | null>(null);
+  const [quickEnlistUrl, setQuickEnlistUrl] = useState('');
+  const [quickEnlistPrompt, setQuickEnlistPrompt] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [historyFile, setHistoryFile] = useState<File | null>(null);
@@ -270,7 +277,9 @@ export default function EnlistmentPanel() {
   function openCapsuleEditor(event: React.MouseEvent<HTMLButtonElement>, productId: string, targetId: string) {
     const bounds = event.currentTarget.getBoundingClientRect();
     const width = 290;
-    const height = 232;
+    const height = 330;
+    setQuickEnlistPrompt(false);
+    setQuickEnlistUrl('');
     setQuickEdit((current) => current?.targetId === targetId ? null : {
       productId,
       targetId,
@@ -322,12 +331,12 @@ export default function EnlistmentPanel() {
 
   return <div className="page enlistment-page enlistment-page-polished">
     <div className="page-head enlistment-head">
-      <div><span className="eyebrow">Enlistment Panel</span><h1>Product enlistment workspace</h1><p>Upload the UBL product master, choose target accounts manually, track marketplace progress and export the exact template each account needs.</p></div>
+      <div><span className="eyebrow">Enlistment Panel</span><h1>Product enlistment workspace</h1><p>Upload the UBL product master, choose target accounts, track enlistment status and save an optional product URL per account.</p></div>
       <div className="enlistment-head-actions">
         <input ref={fileRef} type="file" accept=".csv,.xlsx" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void inspectFile(f); }} />
         <button className="button" onClick={() => fileRef.current?.click()} disabled={busy}><Upload size={16}/>{busy ? 'Working…' : 'Upload enlistment file'}</button>
         <input ref={historyFileRef} type="file" accept=".xlsx" hidden onChange={(e) => {const f=e.target.files?.[0];if(f)void historicalImport(f);e.target.value='';}}/>
-        <button className="button secondary" onClick={() => historyFileRef.current?.click()} disabled={busy}><FileSpreadsheet size={16}/>Historical Y/N Import</button>
+        <button className="button secondary" onClick={() => historyFileRef.current?.click()} disabled={busy}><FileSpreadsheet size={16}/>Historical Y/N/D Import</button>
         <button className="button secondary" onClick={() => void load()} disabled={loading}><RefreshCw size={16}/>Refresh</button>
       </div>
     </div>
@@ -342,9 +351,10 @@ export default function EnlistmentPanel() {
         <div><strong>{historyPreview.accounts.length}</strong><span>Platform columns</span></div>
         <div><strong>{historyPreview.counts.Y || 0}</strong><span>Enlisted (Y)</span></div>
         <div><strong>{historyPreview.counts.N || 0}</strong><span>Not enlisted (N)</span></div>
+        <div><strong>{historyPreview.counts.D || 0}</strong><span>Delivered · not enlisted (D)</span></div>
         <div><strong>{historyPreview.counts['N/A'] || 0}</strong><span>Excluded (N/A)</span></div>
       </div>
-      <p><strong>Y</strong> = enlisted; <strong>N</strong> = pending; <strong>N/A</strong> = no active account mapping; blank = untouched. Existing progressed tasks are protected. Historical-only platforms do not become active OLA/CPP accounts.</p>
+      <p><strong>Y</strong> = enlisted; <strong>N</strong> = not enlisted; <strong>D</strong> = delivered but not enlisted; <strong>N/A</strong> = no active account mapping; blank = untouched. Existing progressed tasks are protected. Historical-only platforms do not become active OLA/CPP accounts.</p>
       {historyPreview.warnings.slice(0,10).map((warning,i)=><div className="alert warning" key={i}>{warning}</div>)}
       <div className="enlistment-preview-actions"><button className="button" disabled={busy || !historyFile} onClick={() => {if(historyFile && window.confirm('Import historical enlistment statuses? This updates the selected product-account mappings.')) void historicalImport(historyFile,true);}}><PackagePlus size={16}/>Confirm one-time backfill</button><span>Preview counts before importing. Do not re-import this historical file after editing live statuses.</span></div>
     </section>}
@@ -438,7 +448,19 @@ export default function EnlistmentPanel() {
         <div className="enlistment-quick-editor" role="dialog" aria-label={`Update ${target.account?.name || 'account'} enlistment status`} style={{ top: quickEdit.top, left: quickEdit.left }}>
           <div className="enlistment-quick-editor-heading"><div><strong>{target.account?.name || 'Account'}</strong><small>{product.name}</small></div><button type="button" aria-label="Close" onClick={() => setQuickEdit(null)}><X size={15}/></button></div>
           <span className="enlistment-quick-editor-label">Set enlistment status</span>
-          {(['enlisted', 'pending', 'delivered_not_enlisted'] as const).map((status) => <button type="button" key={status} className={`enlistment-quick-status ${statusClass[status]} ${statusKey(target) === status ? 'is-selected' : ''}`} disabled={busy} onClick={async () => { setQuickEdit(null); await updateTarget(target, { status }); }}><span>{statusLabels[status]}</span>{statusKey(target) === status && <Check size={15}/>}</button>)}
+          {quickEnlistPrompt ? <div className="enlistment-url-prompt">
+            <label htmlFor="quick-enlist-url">Product URL <span>(optional)</span></label>
+            <input id="quick-enlist-url" type="url" value={quickEnlistUrl} onChange={(event) => setQuickEnlistUrl(event.target.value)} placeholder="https://shop.example.com/product/..." autoFocus />
+            <small>Skip to mark Enlisted without adding a URL. Existing saved URLs stay unchanged.</small>
+            <div className="enlistment-url-actions">
+              <button type="button" className="button secondary compact" disabled={busy} onClick={async () => { setQuickEdit(null); await updateTarget(target, { status: 'enlisted' }); }}>Skip URL</button>
+              <button type="button" className="button compact" disabled={busy || !validProductUrl(quickEnlistUrl)} onClick={async () => { setQuickEdit(null); await updateTarget(target, { status: 'enlisted', accountFields: { product_url: quickEnlistUrl.trim() } }); }}>Save & Enlist</button>
+            </div>
+            <button type="button" className="enlistment-url-back" onClick={() => setQuickEnlistPrompt(false)}>Back to statuses</button>
+          </div> : (['enlisted', 'pending', 'delivered_not_enlisted'] as const).map((status) => <button type="button" key={status} className={`enlistment-quick-status ${statusClass[status]} ${statusKey(target) === status ? 'is-selected' : ''}`} disabled={busy} onClick={async () => {
+            if (status === 'enlisted' && statusKey(target) !== 'enlisted') { setQuickEnlistUrl(''); setQuickEnlistPrompt(true); return; }
+            setQuickEdit(null); await updateTarget(target, { status });
+          }}><span>{statusLabels[status]}</span>{statusKey(target) === status && <Check size={15}/>}</button>)}
           <button type="button" className="enlistment-quick-full-details" onClick={() => { setQuickEdit(null); setOpenProductId(product.id); }}>Full account details</button>
         </div>
       </div>, document.body);
@@ -497,12 +519,32 @@ function TargetCard({ target, statuses, busy, onUpdate }: { key?: string; target
   const code = target.account?.code || '';
   const [fields, setFields] = useState<Record<string, any>>(target.account_fields || {});
   const [notes, setNotes] = useState(target.notes || '');
-  useEffect(() => { setFields(target.account_fields || {}); setNotes(target.notes || ''); }, [target.id, target.updated_at]);
+  const [productUrl, setProductUrl] = useState(String(target.account_fields?.product_url || ''));
+  useEffect(() => { setFields(target.account_fields || {}); setNotes(target.notes || ''); setProductUrl(String(target.account_fields?.product_url || '')); }, [target.id, target.updated_at]);
   const daraz = code === 'daraz';
 
   const set = (key: string, value: string) => setFields((old) => ({ ...old, [key]: value }));
   return <div className="enlistment-target-card">
-    <div className="enlistment-target-head"><div><strong>{target.account?.name || 'Account'}</strong><span>{accountFormat(code)}</span></div><select className={`enlistment-status-select ${statusClass[statusKey(target)]}`} value={statusKey(target)} onChange={(e) => void onUpdate(target, { status: e.target.value })} disabled={busy}>{statuses.map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}</select></div>
+    <div className="enlistment-target-head"><div><strong>{target.account?.name || 'Account'}</strong><span>{accountFormat(code)}</span></div><select className={`enlistment-status-select ${statusClass[statusKey(target)]}`} value={statusKey(target)} onChange={(e) => {
+      const next = e.target.value;
+      if (next === 'enlisted' && statusKey(target) !== 'enlisted') {
+        const response = window.prompt(`Optional product URL for ${target.account?.name || 'this account'}. Leave empty or press Cancel to skip.`, productUrl);
+        if (response !== null && response.trim()) {
+          if (!validProductUrl(response)) { window.alert('Please enter a valid HTTP or HTTPS product URL.'); return; }
+          setProductUrl(response.trim());
+          void onUpdate(target, { status: next, accountFields: { product_url: response.trim() } });
+          return;
+        }
+      }
+      void onUpdate(target, { status: next });
+    }} disabled={busy}>{statuses.map((s) => <option key={s} value={s}>{statusLabels[s]}</option>)}</select></div>
+    <div className="enlistment-target-url-field">
+      <label><span>Enlisted product URL <small>(optional, account-specific)</small></span>
+        <input type="url" value={productUrl} onChange={(e) => setProductUrl(e.target.value)} placeholder="https://store.example.com/product/..." />
+      </label>
+      <button type="button" className="button secondary compact" disabled={busy || (productUrl.trim() !== '' && !validProductUrl(productUrl))} onClick={() => void onUpdate(target, { accountFields: { product_url: productUrl.trim() } })}>Save URL</button>
+      {validProductUrl(String(target.account_fields?.product_url || '')) && <a href={String(target.account_fields.product_url)} target="_blank" rel="noopener noreferrer">View product ↗</a>}
+    </div>
     {daraz && <div className="daraz-extra-fields"><p>Daraz-specific fields</p><div className="daraz-extra-grid">
       <Field label="Product Weight" value={fields.product_weight} onChange={(v) => set('product_weight', v)}/><Field label="New Shop SKU" value={fields.new_shop_sku} onChange={(v) => set('new_shop_sku', v)}/><Field label="Daraz Seller SKU" value={fields.daraz_seller_sku} onChange={(v) => set('daraz_seller_sku', v)}/><Field label="NEW SP" value={fields.new_sp} onChange={(v) => set('new_sp', v)}/><Field label="NEW COGP override" value={fields.new_cogp} onChange={(v) => set('new_cogp', v)} placeholder="Auto: TP ÷ 1.05"/><Field label="Supplier Code" value={fields.supplier_code} onChange={(v) => set('supplier_code', v)}/>
       <label><span>Product Type</span><select value={fields.product_type || ''} onChange={(e) => set('product_type', e.target.value)}><option value="">Choose…</option><option>Food</option><option>Liquid</option><option>Dangerous Goods</option><option>Other</option></select></label>

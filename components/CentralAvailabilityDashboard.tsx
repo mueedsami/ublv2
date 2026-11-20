@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
   ArrowUpRight,
   BarChart3,
   CheckCircle2,
+  ChevronDown,
   Download,
   Layers3,
   LayoutGrid,
@@ -19,6 +20,8 @@ import {
   Target,
 } from 'lucide-react';
 import { exportCsv } from '@/lib/csv-export';
+import { MATRIX_DIMENSIONS, MATRIX_LABELS, olaPercent, type MatrixDimension } from '@/lib/central-daily-matrix';
+import type { DailyMatrixResult } from '@/lib/central-daily-matrix-data';
 
 type CentralRow = {
   account_code: string;
@@ -75,7 +78,8 @@ const EMPTY_FILTERS: Filters = {
   basepack: 'all',
 };
 
-function arr(value: string[] | null | undefined) { return value ?? []; }
+function arr(value: string[] | null | undefined) { return Array.isArray(value) ? value : []; }
+function knownScore(row: CentralRow) { return row.availability_score != null && Number.isFinite(Number(row.availability_score)); }
 function pct(score: number | null | undefined, digits = 1) { return score == null ? '—' : `${(Number(score) * 100).toFixed(digits)}%`; }
 function fmtDate(value: string | null | undefined) {
   if (!value) return 'No observation';
@@ -126,11 +130,30 @@ export default function CentralAvailabilityDashboard() {
     return [...byCode.values()].sort((a, b) => a.account_name.localeCompare(b.account_name, undefined, { sensitivity: 'base' }));
   }, [accounts]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountSelectionTouched = useRef(false);
+  const [loadMeta, setLoadMeta] = useState<{source:string;notice:string;warnings:string[];count:number;diagnostics?:Record<string,unknown>}|null>(null);
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [search, setSearch] = useState('');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all'|'available'|'unavailable'|'unknown'>('all');
   const [tab, setTab] = useState<'overview'|'pivot'|'sku'>('overview');
   const [pivotDimension, setPivotDimension] = useState<PivotDimension>('brandBasepack');
+  const [pivotMode, setPivotMode] = useState<'current' | 'daily'>('current');
+  const [dailyDimension, setDailyDimension] = useState<MatrixDimension>('brand');
+  const [dailyMonth, setDailyMonth] = useState(() => {
+    const parts = new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit'}).formatToParts(new Date());
+    return `${parts.find(p=>p.type==='year')?.value}-${parts.find(p=>p.type==='month')?.value}`;
+  });
+  const [dailyReport, setDailyReport] = useState<DailyMatrixResult | null>(null);
+  const [dailyLoading, setDailyLoading] = useState(false);
+  const [dailyError, setDailyError] = useState('');
+  const [dailyExporting, setDailyExporting] = useState(false);
+  const [basepackReportStart,setBasepackReportStart] = useState(()=>{const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit'}).formatToParts(new Date());return `${p.find(x=>x.type==='year')?.value}-${p.find(x=>x.type==='month')?.value}-01`;});
+  const [basepackReportEnd,setBasepackReportEnd] = useState(()=>{const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return `${p.find(x=>x.type==='year')?.value}-${p.find(x=>x.type==='month')?.value}-${p.find(x=>x.type==='day')?.value}`;});
+  const [basepackExporting,setBasepackExporting] = useState(false);
+  const [basepackExportError,setBasepackExportError] = useState('');
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -140,22 +163,130 @@ export default function CentralAvailabilityDashboard() {
       const response = await fetch('/api/central', { cache: 'no-store' });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Failed to load central availability.');
-      const nextAccounts: AccountSummary[] = json.accounts ?? [];
-      setRows(json.rows ?? []);
+      // Normalize the actual response. Some deployed central account-summary
+      // views are empty even when the central basepack view contains data.
+      const nextRows:CentralRow[] = (Array.isArray(json.rows) ? json.rows : [])
+        .map((r:CentralRow) => ({...r,account_code:String(r.account_code??'').trim().toLowerCase()}));
+      const knownAccounts:AccountSummary[] = (Array.isArray(json.accounts) ? json.accounts : [])
+        .map((a:AccountSummary) => ({...a,account_code:String(a.account_code??'').trim().toLowerCase()}));
+      const byAccount=new Map<string,AccountSummary>();
+      for (const a of knownAccounts) if(a.account_code)byAccount.set(a.account_code,a);
+      for (const r of nextRows) if(r.account_code && !byAccount.has(r.account_code)) {
+        byAccount.set(r.account_code,{account_code:r.account_code,account_name:r.account_name || r.account_code,
+          sort_order:Number(r.sort_order??999),observation_date:r.observation_date??null});
+      }
+      const nextAccounts=[...byAccount.values()].sort((a,b)=>a.sort_order-b.sort_order || a.account_name.localeCompare(b.account_name));
+      setRows(nextRows);
       setAccounts(nextAccounts);
+      setLoadMeta({source:String(json.source??'unknown'),notice:String(json.notice??''),
+        warnings:Array.isArray(json.warnings)?json.warnings:[],count:nextRows.length,
+        diagnostics:json.diagnostics && typeof json.diagnostics==='object' ? json.diagnostics : undefined});
       setSelectedAccounts((current) => {
-        const eligible = [...new Set([...nextAccounts.filter(a => a.account_code !== 'ushop' && a.account_code !== 'beauty_booth').map(a => a.account_code), 'arogga', 'cartup', 'shwapno', 'beauty_booth'])];
-        const retained = current.filter(code => eligible.includes(code));
-        return retained.length ? retained : eligible;
+        const eligible=[...new Set([...nextAccounts.filter(a=>a.account_code!=='ushop' && a.account_code!=='beauty_booth').map(a=>a.account_code),
+          'arogga','cartup','shwapno','beauty_booth'])];
+        // Refresh should repopulate the scope if accounts were initially absent.
+        // But explicit Clear all / custom selection must always be respected.
+        if(!accountSelectionTouched.current) return eligible;
+        return current.filter(code=>eligible.includes(code));
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load central availability.');
+      setLoadMeta(null);
+      setRows([]); setAccounts([]);
     } finally { setLoading(false); }
   }
 
   useEffect(()=>{fetch('/api/ola/catalog-summary',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(body=>{if(body)setCatalogSummary(body.accounts??[]);}).catch(()=>{});},[]);
   useEffect(()=>{fetch('/api/central/ola-readiness',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(data=>{if(data)setOlaReadiness(data);}).catch(()=>{});},[]);
   useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) setAccountMenuOpen(false);
+    };
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAccountMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeEscape);
+    };
+  }, [accountMenuOpen]);
+
+  const dailyParams = useMemo(() => {
+    const q = new URLSearchParams({
+      month: dailyMonth, accounts: selectedAccounts.join(','),
+      businessGroup: filters.businessGroup, category: filters.category,
+      subCategory: filters.subCategory, brand: filters.brand, basepack: filters.basepack,
+    });
+    if (search.trim()) q.set('search', search.trim());
+    return q.toString();
+  }, [dailyMonth, selectedAccounts, filters, search]);
+  useEffect(() => {
+    if (tab !== 'pivot' || pivotMode !== 'daily') return;
+    const controller = new AbortController();
+    setDailyLoading(true); setDailyError(''); setDailyReport(null);
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/central/daily-matrix?${dailyParams}`, {signal: controller.signal,cache:'no-store'});
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'Failed to load daily OLA matrix');
+        if (!controller.signal.aborted) setDailyReport(payload as DailyMatrixResult);
+      } catch (error) {
+        if (!controller.signal.aborted) setDailyError(error instanceof Error ? error.message : 'Failed to load daily OLA matrix');
+      } finally {
+        if (!controller.signal.aborted) setDailyLoading(false);
+      }
+    }, 400);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [tab, pivotMode, dailyParams]);
+
+  async function downloadDailyMatrix(dimension: MatrixDimension | 'all') {
+    if (!dailyReport || dailyExporting) return;
+    setDailyExporting(true); setDailyError('');
+    try {
+      const params = new URLSearchParams(dailyParams);
+      params.set('format','xlsx'); params.set('dimension',dimension);
+      const response = await fetch(`/api/central/daily-matrix?${params.toString()}`, {cache:'no-store'});
+      if (!response.ok) {
+        const body = await response.json().catch(()=>({error:'Excel export failed'}));
+        throw new Error(body.error || 'Excel export failed');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `UBL_Daily_OLA_Matrix_${dailyMonth}_${dimension}.xlsx`;
+      document.body.appendChild(link);
+      link.click(); link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      setDailyError(error instanceof Error ? error.message : 'Excel export failed');
+    } finally { setDailyExporting(false); }
+  }
+
+  async function downloadBasepackWorkbook() {
+    if(basepackExporting || !selectedAccounts.length) return;
+    setBasepackExporting(true); setBasepackExportError('');
+    try {
+      const params = new URLSearchParams(dailyParams);
+      params.set('start',basepackReportStart);
+      params.set('end',basepackReportEnd);
+      const response=await fetch(`/api/central/basepack-report?${params.toString()}`,{cache:'no-store'});
+      if(!response.ok){const payload=await response.json().catch(()=>({error:'Workbook generation failed'}));
+        throw new Error(payload.error||'Workbook generation failed');}
+      const blob=await response.blob();const url=URL.createObjectURL(blob);
+      const link=document.createElement('a');link.href=url;
+      link.download=`UBL_Basepack_Account_OLA_${basepackReportStart}_${basepackReportEnd}.xlsx`;
+      document.body.appendChild(link);link.click();link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(url),2000);
+    }catch(error){setBasepackExportError(error instanceof Error?error.message:'Workbook generation failed');}
+    finally{setBasepackExporting(false);}
+  }
+
+  const activeDailyMatrix = dailyReport?.matrices[dailyDimension] ?? null;
 
   const businessGroupOptions = useMemo(() => [...new Set(rows.flatMap((r)=>arr(r.business_groups)))].sort(), [rows]);
   const categoryOptions = useMemo(() => [...new Set(rows.filter((r)=>filters.businessGroup==='all'||arr(r.business_groups).includes(filters.businessGroup)).flatMap((r)=>arr(r.categories)))].sort(), [rows,filters.businessGroup]);
@@ -219,11 +350,11 @@ export default function CentralAvailabilityDashboard() {
 
   const accountStats = useMemo(() => accounts.filter((a)=>selectedAccounts.includes(a.account_code)).map((a) => {
     const scoped = filteredRows.filter((r)=>r.account_code===a.account_code);
-    const score = avg(scoped.map((r)=>Number(r.availability_score)));
-    const full = scoped.filter((r)=>Number(r.availability_score)>=.999999).length;
-    const partial = scoped.filter((r)=>Number(r.availability_score)>0 && Number(r.availability_score)<.999999).length;
-    const oos = scoped.filter((r)=>Number(r.availability_score)<=0).length;
-    return { ...a, score, basepacks: scoped.length, equivalent: scoped.reduce((n,r)=>n+Number(r.availability_score),0), full, partial, oos };
+    const score = avg(scoped.filter(knownScore).map((r)=>Number(r.availability_score)));
+    const full = scoped.filter((r)=>knownScore(r) && Number(r.availability_score)>=.999999).length;
+    const partial = scoped.filter((r)=>knownScore(r) && Number(r.availability_score)>0 && Number(r.availability_score)<.999999).length;
+    const oos = scoped.filter((r)=>knownScore(r) && Number(r.availability_score)<=0).length;
+    return { ...a, score, basepacks: scoped.length, equivalent: scoped.filter(knownScore).reduce((n,r)=>n+Number(r.availability_score),0), full, partial, oos };
   }), [accounts, selectedAccounts, filteredRows]);
 
   const brandSummary = useMemo(() => {
@@ -232,8 +363,9 @@ export default function CentralAvailabilityDashboard() {
       const brands = arr(row.brands).length ? arr(row.brands) : ['Unclassified'];
       for (const brand of brands) {
         const item = map.get(brand) ?? { brand, basepacks:new Set<string>(), scores:[], byAccount:new Map<string,number[]>() };
-        item.basepacks.add(row.basepack_id); item.scores.push(Number(row.availability_score));
-        const list = item.byAccount.get(row.account_code) ?? []; list.push(Number(row.availability_score)); item.byAccount.set(row.account_code,list);
+        item.basepacks.add(row.basepack_id);
+        if(knownScore(row)){item.scores.push(Number(row.availability_score));
+          const list = item.byAccount.get(row.account_code) ?? [];list.push(Number(row.availability_score));item.byAccount.set(row.account_code,list);}
         map.set(brand,item);
       }
     }
@@ -259,7 +391,7 @@ export default function CentralAvailabilityDashboard() {
         scores:[] as number[],
       };
       const item = map.get(row.basepack_id) ?? fallback;
-      item.cells.set(row.account_code,row); item.scores.push(Number(row.availability_score)); map.set(row.basepack_id,item);
+      item.cells.set(row.account_code,row); if(knownScore(row))item.scores.push(Number(row.availability_score)); map.set(row.basepack_id,item);
     }
     return [...map.values()].sort((a,b)=>a.brand.localeCompare(b.brand)||a.packsize.localeCompare(b.packsize));
   }, [filteredRows]);
@@ -274,8 +406,9 @@ export default function CentralAvailabilityDashboard() {
         : arr(row.sub_categories);
       for (const label of (vals.length ? vals : ['Unclassified'])) {
         const item = map.get(label) ?? {label,basepacks:new Set<string>(),scores:[],byAccount:new Map<string,number[]>()};
-        item.basepacks.add(row.basepack_id); item.scores.push(Number(row.availability_score));
-        const list = item.byAccount.get(row.account_code) ?? []; list.push(Number(row.availability_score)); item.byAccount.set(row.account_code,list);
+        item.basepacks.add(row.basepack_id);
+        if(knownScore(row)){item.scores.push(Number(row.availability_score));
+          const list = item.byAccount.get(row.account_code) ?? [];list.push(Number(row.availability_score));item.byAccount.set(row.account_code,list);}
         map.set(label,item);
       }
     }
@@ -283,7 +416,7 @@ export default function CentralAvailabilityDashboard() {
   }, [filteredRows,pivotDimension]);
 
   const executive = useMemo(() => {
-    const scores = filteredRows.map((r)=>Number(r.availability_score));
+    const scores = filteredRows.filter(knownScore).map((r)=>Number(r.availability_score));
     const overall = avg(scores);
     const full = scores.filter((s)=>s>=.999999).length;
     const partial = scores.filter((s)=>s>0 && s<.999999).length;
@@ -304,7 +437,7 @@ export default function CentralAvailabilityDashboard() {
       const labels = arr(row.categories).length ? arr(row.categories) : ['Unclassified'];
       for (const label of labels) {
         const item = map.get(label) ?? { label, scores:[], basepacks:new Set<string>() };
-        item.scores.push(Number(row.availability_score));
+        if(knownScore(row))item.scores.push(Number(row.availability_score));
         item.basepacks.add(row.basepack_id);
         map.set(label,item);
       }
@@ -317,6 +450,7 @@ export default function CentralAvailabilityDashboard() {
     for (const a of accountStats) {
       const cell = b.cells.get(a.account_code);
       if (!cell) continue;
+      if(!knownScore(cell))continue;
       const score = Number(cell.availability_score);
       if (score <= 0) oos += 1;
       else if (score < .999999) partial += 1;
@@ -327,10 +461,11 @@ export default function CentralAvailabilityDashboard() {
   const maxAccountScore = Math.max(1, ...accountStats.map((a)=>Number(a.score ?? 0) * 100));
 
   function toggleAccount(code:string) {
-    setSelectedAccounts((current) => current.includes(code) ? (current.length===1?current:current.filter((x)=>x!==code)) : [...current,code]);
+    accountSelectionTouched.current=true;
+    setSelectedAccounts((current) => current.includes(code) ? current.filter((x)=>x!==code) : [...current,code]);
   }
-  function focusAccount(code:string) { setSelectedAccounts([code]); }
-  function reset() { setFilters(EMPTY_FILTERS); setSearch(''); setAvailabilityFilter('all'); setPandamartStore('all'); setSelectedAccounts(filterAccounts.map((a)=>a.account_code)); }
+  function focusAccount(code:string) { accountSelectionTouched.current=true;setSelectedAccounts([code]); }
+  function reset() { accountSelectionTouched.current=false;setFilters(EMPTY_FILTERS); setSearch(''); setAvailabilityFilter('all'); setPandamartStore('all'); setSelectedAccounts(filterAccounts.map((a)=>a.account_code)); }
   function exportSkuRows() {
     exportCsv(`central-sku-ola-${pandamartStore==='all'?'all-stores':pandamartStore.replace(/[^a-z0-9-]/gi,'-')}-${availabilityFilter}`, filteredSkuRows.map((r)=>({
       Account:r.account_name, Branch:r.branch, Product:r.product_name, Account_SKU:r.account_sku,
@@ -374,6 +509,26 @@ export default function CentralAvailabilityDashboard() {
     </div>
 
     {error && <div className="alert error central-alert">{error}</div>}
+    {!loading && !error && loadMeta && rows.length===0 && (
+      <div className="alert error central-alert" role="status">
+        <strong>No mapped basepack data was returned.</strong> The Central Availability API completed but returned zero rows.
+        <p>Source: {loadMeta.source}. {loadMeta.notice || 'Check latest scraper runs and active account SKU mappings.'}</p>
+        {loadMeta.diagnostics && <p style={{fontSize:12}}>Database diagnostics: {JSON.stringify(loadMeta.diagnostics)}</p>}
+        <p>Check <code>/api/central?source=scraped</code> and <code>/api/central?source=stock</code> to compare sources.</p>
+      </div>
+    )}
+    {!loading && !error && rows.length>0 && filteredRows.length===0 && (
+      <div className="alert central-alert" role="status" style={{padding:14,marginBottom:12}}>
+        <strong>{rows.length.toLocaleString()} records loaded, but none match the selected scope.</strong>
+        <p>{selectedAccounts.length===0?'No accounts are selected.':'The selected accounts, search, or filters exclude all the returned records.'} Use Reset scope to display the available accounts.</p>
+        <p style={{fontSize:12}}>Data source: {loadMeta?.source??'unknown'}; {accounts.length} accounts returned.</p>
+      </div>
+    )}
+    {!loading && !error && loadMeta && rows.length>0 && loadMeta.notice && (
+      <div className="alert central-alert" role="status" style={{padding:12,marginBottom:12,fontSize:12}}>
+        <strong>Availability data source: {loadMeta.source}</strong> — {loadMeta.notice}
+      </div>
+    )}
 
     <section className="central-hero-card">
       <div className="central-hero-main">
@@ -416,17 +571,18 @@ export default function CentralAvailabilityDashboard() {
         <label><span>Brand</span><select value={filters.brand} onChange={(e)=>setFilter('brand',e.target.value)}><option value="all">All brands</option>{brandOptions.map((v)=><option key={v} value={v}>{v}</option>)}</select></label>
         <div className="central-accounts-field">
           <span className="central-filter-label">Accounts</span>
-          <details className="central-accounts-dropdown">
-            <summary aria-label="Filter marketplace accounts">
-              <span>{selectedAccounts.length === filterAccounts.length ? 'All accounts' : selectedAccounts.length === 1 ? (filterAccounts.find((a) => a.account_code === selectedAccounts[0])?.account_name ?? '1 account') : `${selectedAccounts.length} of ${filterAccounts.length} accounts`}</span>
-              <span aria-hidden="true" className="central-accounts-chevron">⌄</span>
-            </summary>
+          <div className={`central-accounts-dropdown${accountMenuOpen ? ' is-open' : ''}`} ref={accountMenuRef}>
+            <button type="button" className="central-accounts-trigger" aria-label="Filter marketplace accounts" aria-expanded={accountMenuOpen} aria-haspopup="true" onClick={() => setAccountMenuOpen((open) => !open)}>
+              <span>{selectedAccounts.length === 0 ? 'No accounts selected' : selectedAccounts.length === filterAccounts.length ? 'All accounts' : selectedAccounts.length === 1 ? (filterAccounts.find((a) => a.account_code === selectedAccounts[0])?.account_name ?? '1 account') : `${selectedAccounts.length} of ${filterAccounts.length} accounts`}</span>
+              <ChevronDown aria-hidden="true" size={17} className="central-accounts-chevron" />
+            </button>
+            {accountMenuOpen && (
             <div className="central-accounts-menu">
               <div className="central-accounts-menu-head">
                 <strong>Select accounts</strong>
                 <div className="central-account-actions" style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-                  <button type="button" onClick={() => setSelectedAccounts(['arogga'])}>Clear all</button>
-                  <button type="button" onClick={() => setSelectedAccounts(filterAccounts.map((a) => a.account_code))}>Select all</button>
+                  <button type="button" onClick={() => {accountSelectionTouched.current=true;setSelectedAccounts([]);}}>Clear all</button>
+                  <button type="button" onClick={() => {accountSelectionTouched.current=true;setSelectedAccounts(filterAccounts.map((a) => a.account_code));}}>Select all</button>
                 </div>
               </div>
               <div className="central-accounts-menu-options">
@@ -437,9 +593,10 @@ export default function CentralAvailabilityDashboard() {
                   </label>
                 ))}
               </div>
-              <p>At least one account must remain selected.</p>
+              <p>{selectedAccounts.length === 0 ? 'No accounts selected. Choose the accounts you want to inspect.' : 'Choose one or more accounts. Click outside or press Esc to close.'}</p>
             </div>
-          </details>
+            )}
+          </div>
         </div>
         <label><span>Availability</span><select value={availabilityFilter} onChange={(e)=>setAvailabilityFilter(e.target.value as 'all'|'available'|'unavailable'|'unknown')}><option value="all">All products</option><option value="available">Available only</option><option value="unavailable">Out of Stock only</option><option value="unknown">Unknown / failed check</option></select></label>
         {tab==='sku' && selectedAccounts.includes('pandamart') && <label><span>Pandamart darkstore</span><select value={pandamartStore} onChange={(e)=>setPandamartStore(e.target.value)}><option value="all">All darkstores</option>{pandamartStoreOptions.map((name)=><option key={name} value={name}>{name}</option>)}</select></label>}
@@ -554,16 +711,91 @@ export default function CentralAvailabilityDashboard() {
         </div>
       </section>
     </> : <section className="card pivot-card central-pivot-card-heavy">
-      <div className="card-head pivot-head"><div><span className="central-chart-kicker">Analyst drill-down</span><h2>Availability matrix</h2><p>The operational truth underneath the executive visuals. Not-scoped cells remain separate from OOS.</p></div>
-        <label className="pivot-dimension"><span>Rows</span><select value={pivotDimension} onChange={(e)=>setPivotDimension(e.target.value as PivotDimension)}><option value="brandBasepack">Brand → Basepack</option><option value="brand">Brand</option><option value="businessGroup">Business Unit</option><option value="category">Category</option><option value="subCategory">Sub-category</option></select></label>
+      <div className="card-head pivot-head" style={{flexWrap:'wrap',gap:12}}>
+        <div><span className="central-chart-kicker">Analyst drill-down</span><h2>Availability matrix</h2>
+          <p>{pivotMode==='current' ? 'Latest account-wise availability; Not scoped is distinct from OOS.' : 'Historical daily scraped OLA: weighted availability by master data classification.'}</p>
+        </div>
+        <div style={{display:'flex',flexWrap:'wrap',gap:10,alignItems:'end'}}>
+          <label className="pivot-dimension"><span>Matrix view</span><select value={pivotMode} onChange={e=>setPivotMode(e.target.value as 'current'|'daily')}>
+            <option value="current">Current snapshot</option><option value="daily">Daily OLA</option>
+          </select></label>
+          {pivotMode==='current' ?
+            <label className="pivot-dimension"><span>Rows</span><select value={pivotDimension} onChange={(e)=>setPivotDimension(e.target.value as PivotDimension)}><option value="brandBasepack">Brand → Basepack</option><option value="brand">Brand</option><option value="businessGroup">Business Unit</option><option value="category">Category</option><option value="subCategory">Sub-category</option></select></label>
+            : <>
+              <label className="pivot-dimension"><span>Month</span><input type="month" value={dailyMonth} min="2020-01" max="2100-12" onChange={e=>setDailyMonth(e.target.value)} /></label>
+              <label className="pivot-dimension"><span>Group by</span><select value={dailyDimension} onChange={e=>setDailyDimension(e.target.value as MatrixDimension)}>
+                {MATRIX_DIMENSIONS.map(key=><option key={key} value={key}>{MATRIX_LABELS[key]}</option>)}
+              </select></label>
+            </>}
+        </div>
       </div>
-      {pivotDimension==='brandBasepack' ? <div className="table-wrap"><table className="matrix-table central-pivot-table central-pivot-table-heavy"><thead><tr><th className="sticky-col">Brand / Basepack</th>{accountStats.map((a)=><th key={a.account_code}>{a.account_name}<small>{fmtDate(a.observation_date)}</small></th>)}</tr></thead><tbody>
+      {pivotMode==='daily' ? <>
+        <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',gap:10,marginBottom:12}}>
+          <button className="button secondary compact" disabled={!dailyReport || dailyLoading || dailyExporting} onClick={()=>void downloadDailyMatrix(dailyDimension)}>
+            <Download size={15}/>{dailyExporting?'Preparing Excel…':`Download ${MATRIX_LABELS[dailyDimension]} (.xlsx)`}
+          </button>
+          <button className="button secondary compact" disabled={!dailyReport || dailyLoading || dailyExporting} onClick={()=>void downloadDailyMatrix('all')}>
+            <Download size={15}/>Download all four matrices (.xlsx)
+          </button>
+          <span style={{fontSize:12,opacity:.8}}>{dailyReport ? `${dailyReport.meta.selected_runs} daily account runs · ${dailyReport.meta.mapped_observations.toLocaleString()} mapped observations` : ''}</span>
+        </div>
+        <div style={{display:'flex',flexWrap:'wrap',alignItems:'end',gap:10,padding:'14px 0',marginBottom:10,borderTop:'1px solid var(--border, #e5e7eb)',borderBottom:'1px solid var(--border, #e5e7eb)'}}>
+          <div style={{flex:'1 1 210px'}}><strong>Full basepack OLA workbook</strong><div style={{fontSize:12,opacity:.75}}>Dashboard, daily account/branch sheets, brand/format/category summaries, NOLA, mapping health and SKU evidence. Uses selected accounts and filters. Up to 62 days.</div></div>
+          <label className="pivot-dimension"><span>From</span><input type="date" value={basepackReportStart} max={basepackReportEnd} onChange={e=>setBasepackReportStart(e.target.value)}/></label>
+          <label className="pivot-dimension"><span>To</span><input type="date" value={basepackReportEnd} min={basepackReportStart} onChange={e=>setBasepackReportEnd(e.target.value)}/></label>
+          <button className="button secondary compact" disabled={basepackExporting || selectedAccounts.length===0} onClick={()=>void downloadBasepackWorkbook()}>
+            <Download size={15}/>{basepackExporting?'Generating workbook…':'Download full report (.xlsx)'}
+          </button>
+        </div>
+        {basepackExportError && <div className="alert error central-alert" role="alert">{basepackExportError}</div>}
+        {dailyError && <div className="alert error central-alert" role="alert">{dailyError}</div>}
+        {dailyLoading ? <div className="empty">Loading daily historical OLA for {dailyMonth}…</div> :
+        !activeDailyMatrix || !dailyReport ? <div className="empty">Choose a month and account scope to load daily OLA.</div> : <>
+          <div className="table-wrap" style={{overflowX:'auto'}}>
+            <table className="central-summary-table central-summary-table-heavy" style={{minWidth:Math.max(860,230+dailyReport.dates.length*80)}}>
+              <thead><tr>
+                <th style={{position:'sticky',left:0,zIndex:2,minWidth:180,background:'var(--card, #fff)'}}>{MATRIX_LABELS[dailyDimension]}</th>
+                {dailyReport.dates.map(date=><th key={date} style={{minWidth:79}} title={date}>{date.slice(8)}</th>)}
+                <th>MTD OLA</th><th>Valid checks</th><th>Unknown</th>
+              </tr></thead>
+              <tbody>
+              {activeDailyMatrix.rows.map(group=><tr key={group.label}>
+                <td style={{position:'sticky',left:0,zIndex:1,background:'var(--card, #fff)'}}><strong>{group.label}</strong></td>
+                {dailyReport.dates.map(date=>{
+                  const counts=group.counts[date], value=counts?olaPercent(counts):null;
+                  return <td key={date} title={counts ? `${date}: ${counts.available} available, ${counts.unavailable} OOS, ${counts.unknown} unknown` : `${date}: no observations`}>
+                    {value===null?<span className="central-heat-cell neutral">—</span>:<span className={`central-heat-cell ${scoreBand(value/100)}`}>{value.toFixed(2)}%</span>}
+                  </td>;
+                })}
+                <td><strong>{olaPercent(group.mtd)===null?'—':`${olaPercent(group.mtd)!.toFixed(2)}%`}</strong></td>
+                <td>{(group.mtd.available+group.mtd.unavailable).toLocaleString()}</td><td>{group.mtd.unknown.toLocaleString()}</td>
+              </tr>)}
+              <tr style={{fontWeight:700}}><td style={{position:'sticky',left:0,zIndex:1,background:'var(--card, #fff)'}}>TOTAL</td>
+                {dailyReport.dates.map(date=>{
+                  const counts=activeDailyMatrix.total.counts[date], value=counts?olaPercent(counts):null;
+                  return <td key={date} title={counts?`${counts.available} available, ${counts.unavailable} OOS, ${counts.unknown} unknown`:'No observations'}>
+                    {value===null?'—':`${value.toFixed(2)}%`}
+                  </td>;
+                })}
+                <td>{olaPercent(activeDailyMatrix.total.mtd)===null?'—':`${olaPercent(activeDailyMatrix.total.mtd)!.toFixed(2)}%`}</td>
+                <td>{(activeDailyMatrix.total.mtd.available+activeDailyMatrix.total.mtd.unavailable).toLocaleString()}</td><td>{activeDailyMatrix.total.mtd.unknown.toLocaleString()}</td>
+              </tr>
+              {!activeDailyMatrix.rows.length && <tr><td colSpan={dailyReport.dates.length+4} className="empty">No mapped daily OLA observations match the filters.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <p style={{fontSize:12,opacity:.75,marginTop:10}}>{dailyReport.meta.methodology}</p>
+          {availabilityFilter!=='all'&&<p style={{fontSize:12,opacity:.85}}>Note: the current IS/OOS status filter is intentionally not applied to historical percentages; this avoids distorting the daily OLA denominator.</p>}
+          {dailyReport.meta.warnings.length>0&&<p style={{fontSize:12,opacity:.85}}>{dailyReport.meta.warnings.join(' ')}</p>}
+        </>}
+      </> :
+        <>{pivotDimension==='brandBasepack' ? <div className="table-wrap"><table className="matrix-table central-pivot-table central-pivot-table-heavy"><thead><tr><th className="sticky-col">Brand / Basepack</th>{accountStats.map((a)=><th key={a.account_code}>{a.account_name}<small>{fmtDate(a.observation_date)}</small></th>)}</tr></thead><tbody>
         {basepackMatrix.map((b,i)=>{
           const previousBrand = i>0 ? basepackMatrix[i-1].brand : null;
-          return <tr key={b.basepack_id} className={previousBrand!==b.brand?'brand-start':''}><td className="sticky-col product-cell">{previousBrand!==b.brand&&<span className="pivot-brand-label">{b.brand}</span>}<strong>{b.packsize}</strong><span>{b.businessGroup} · {b.category} · {b.subCategory}</span></td>{accountStats.map((a)=>{const cell=b.cells.get(a.account_code);return <td key={a.account_code}>{!cell?<span className="status not-listed">Not scoped</span>:cell.account_code==='pandamart'?<><span className={`status ${cell.availability_score>0?'available':'oos'}`}>{cell.available_units}/{cell.expected_units} branches</span><div className={`central-matrix-score ${scoreBand(Number(cell.availability_score))}`}>{pct(Number(cell.availability_score))}</div></>:<><span className={`status ${cell.availability_score>0?'available':'oos'}`}>{cell.availability_score>0?'Available':'OOS'}</span><div className={`central-matrix-score ${scoreBand(Number(cell.availability_score))}`}>{Number(cell.stock_qty).toLocaleString()} units</div></>}</td>})}</tr>;
+          return <tr key={b.basepack_id} className={previousBrand!==b.brand?'brand-start':''}><td className="sticky-col product-cell">{previousBrand!==b.brand&&<span className="pivot-brand-label">{b.brand}</span>}<strong>{b.packsize}</strong><span>{b.businessGroup} · {b.category} · {b.subCategory}</span></td>{accountStats.map((a)=>{const cell=b.cells.get(a.account_code);return <td key={a.account_code}>{!cell?<span className="status not-listed">Not scoped</span>:!knownScore(cell)?<span className="status not-listed">Unknown</span>:cell.account_code==='pandamart'?<><span className={`status ${cell.availability_score>0?'available':'oos'}`}>{cell.available_units}/{cell.expected_units} branches</span><div className={`central-matrix-score ${scoreBand(Number(cell.availability_score))}`}>{pct(Number(cell.availability_score))}</div></>:<><span className={`status ${cell.availability_score>0?'available':'oos'}`}>{cell.availability_score>0?'Available':'OOS'}</span><div className={`central-matrix-score ${scoreBand(Number(cell.availability_score))}`}>{Number(cell.stock_qty).toLocaleString()} units</div></>}</td>})}</tr>;
         })}
         {!basepackMatrix.length&&<tr><td colSpan={1+accountStats.length} className="empty">No rows match the selected filters.</td></tr>}</tbody></table></div>
-      : <div className="table-wrap"><table className="central-summary-table central-summary-table-heavy"><thead><tr><th>{pivotDimension==='businessGroup'?'Business Unit':pivotDimension==='subCategory'?'Sub-category':pivotDimension[0].toUpperCase()+pivotDimension.slice(1)}</th><th>Basepacks</th><th>Overall</th>{accountStats.map((a)=><th key={a.account_code}>{a.account_name}</th>)}</tr></thead><tbody>{groupedPivot.map((g)=><tr key={g.label}><td><strong>{g.label}</strong></td><td>{g.basepacks}</td><td><span className={`central-heat-cell ${scoreBand(g.score)}`}>{pct(g.score)}</span></td>{accountStats.map((a)=><td key={a.account_code}>{g.accountScores[a.account_code]==null?'—':<span className={`central-heat-cell ${scoreBand(g.accountScores[a.account_code])}`}>{pct(g.accountScores[a.account_code])}</span>}</td>)}</tr>)}</tbody></table></div>}
+      : <div className="table-wrap"><table className="central-summary-table central-summary-table-heavy"><thead><tr><th>{pivotDimension==='businessGroup'?'Business Unit':pivotDimension==='subCategory'?'Sub-category':pivotDimension[0].toUpperCase()+pivotDimension.slice(1)}</th><th>Basepacks</th><th>Overall</th>{accountStats.map((a)=><th key={a.account_code}>{a.account_name}</th>)}</tr></thead><tbody>{groupedPivot.map((g)=><tr key={g.label}><td><strong>{g.label}</strong></td><td>{g.basepacks}</td><td><span className={`central-heat-cell ${scoreBand(g.score)}`}>{pct(g.score)}</span></td>{accountStats.map((a)=><td key={a.account_code}>{g.accountScores[a.account_code]==null?'—':<span className={`central-heat-cell ${scoreBand(g.accountScores[a.account_code])}`}>{pct(g.accountScores[a.account_code])}</span>}</td>)}</tr>)}</tbody></table></div>}</>}
     </section>}
   </div>;
 }

@@ -1,6 +1,6 @@
 import { loadWorkbook, valueText } from '@/lib/excel';
 
-export type HistoricStatus = 'Y'|'N'|'N/A'|'';
+export type HistoricStatus = 'Y'|'N'|'D'|'N/A'|'';
 export type HistoricRow = { name: string; details: Record<string,string>; statuses: Record<string,HistoricStatus> };
 export type HistoricalPreview = { rows: HistoricRow[]; accounts: {name:string;code:string}[]; counts: Record<string,number>; warnings: string[] };
 
@@ -38,7 +38,7 @@ export async function parseHistoricalTracker(file:File):Promise<HistoricalPrevie
     detailMap.set(k,record);
   }
   const rows:HistoricRow[]=[]; const seen=new Set<string>();
-  const counts:Record<string,number>={Y:0,N:0,'N/A':0,blank:0}; const warnings:string[]=[];
+  const counts:Record<string,number>={Y:0,N:0,D:0,'N/A':0,blank:0}; const warnings:string[]=[];
   for(const [i,row] of matrix.rows.entries()) {
     if(i===0)continue;
     const name=asText(row[0]); if(!name)continue;
@@ -50,7 +50,7 @@ export async function parseHistoricalTracker(file:File):Promise<HistoricalPrevie
     const statuses:Record<string,HistoricStatus>={};
     accounts.forEach((a,j)=>{
       const raw=asText(row[j+1]).toUpperCase().replace(/\s+/g,'');
-      if(raw && raw!=='Y' && raw!=='N' && raw!=='N/A') throw new Error(`Unexpected value '${raw}' for ${name} / ${a.name} at row ${i+1}.`);
+      if(raw && raw!=='Y' && raw!=='N' && raw!=='D' && raw!=='N/A') throw new Error(`Unexpected value '${raw}' for ${name} / ${a.name} at row ${i+1}.`);
       const s=raw as HistoricStatus; statuses[a.code]=s; counts[s||'blank']++;
     });
     rows.push({name,details:details||{},statuses});

@@ -249,11 +249,10 @@
 .central-accounts-field{display:flex;flex-direction:column;gap:5px;min-width:0;position:relative}
 .central-accounts-field>.central-filter-label{font-size:10px;font-weight:850;color:#5f6f8d;text-transform:uppercase;letter-spacing:.03em}
 .central-accounts-dropdown{position:relative;min-width:0}
-.central-accounts-dropdown>summary{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;min-height:47px;padding:0 15px;background:#fff;border:1px solid #d8e0ec;border-radius:11px;color:#10203d;font-size:14px;cursor:pointer;list-style:none;user-select:none}
-.central-accounts-dropdown>summary::-webkit-details-marker{display:none}
-.central-accounts-dropdown[open]>summary{border-color:#8eaff3;box-shadow:0 0 0 3px rgba(28,99,220,.09)}
+.central-accounts-dropdown>.central-accounts-trigger{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;min-height:47px;padding:0 15px;background:#fff;border:1px solid #d8e0ec;border-radius:11px;color:#10203d;font-size:14px;cursor:pointer;list-style:none;user-select:none}
+.central-accounts-dropdown.is-open>.central-accounts-trigger{border-color:#8eaff3;box-shadow:0 0 0 3px rgba(28,99,220,.09)}
 .central-accounts-chevron{font-size:19px;line-height:1;color:#334a6e;transition:transform .16s}
-.central-accounts-dropdown[open] .central-accounts-chevron{transform:rotate(180deg)}
+.central-accounts-dropdown.is-open .central-accounts-chevron{transform:rotate(180deg)}
 .central-accounts-menu{position:absolute;top:calc(100% + 6px);left:0;min-width:100%;width:max-content;max-width:min(320px,calc(100vw - 36px));z-index:40;background:#fff;border:1px solid #d6e0ef;box-shadow:0 15px 40px rgba(9,27,58,.18);border-radius:12px;padding:10px}
 .central-accounts-menu-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:5px 6px 9px;border-bottom:1px solid #edf0f6}
 .central-accounts-menu-head strong{font-size:12px;color:#223455}
@@ -265,10 +264,15 @@
 .central-accounts-option span{font-size:13px!important;color:#223455!important;text-transform:none!important;letter-spacing:normal!important;font-weight:600!important}
 .central-accounts-menu>p{font-size:10px;color:#778398;margin:5px 6px 1px}
 
-/* UBL ENLISTMENT RESTORE v1 - scoped; safe to append after existing CSS */
-.enlistment-page,.sos-keyword-page,.sos-report-page{min-width:0;width:100%;max-width:1780px}
-.enlistment-page button,.sos-keyword-page button,.sos-report-page button{font-family:inherit}
-.enlistment-page .card,.sos-keyword-page .card,.sos-report-page .card{min-width:0}
+/* Account selector: controlled button (no native details arrow or double chevron). */
+.central-accounts-dropdown>.central-accounts-trigger{text-align:left;font-family:inherit;appearance:none;-webkit-appearance:none;font-weight:500}
+.central-accounts-dropdown>.central-accounts-trigger:focus-visible{outline:2px solid #155eef;outline-offset:2px}
+.central-accounts-dropdown>.central-accounts-trigger .central-accounts-chevron{flex-shrink:0}
+
+/* Enlistment Hub: complete component styles */
+.enlistment-page{min-width:0;width:100%;max-width:1780px}
+.enlistment-page button{font-family:inherit}
+.enlistment-page .card{min-width:0}
 .enlistment-head{align-items:flex-start}
 .enlistment-head>div:first-child{min-width:0;max-width:850px}
 .enlistment-head-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}
@@ -288,7 +292,7 @@
 .enlistment-summary-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-left:1px solid rgba(255,255,255,.18)}
 .enlistment-summary-stats>div{padding:20px 23px;display:flex;flex-direction:column;justify-content:center;border-bottom:1px solid rgba(255,255,255,.15);border-right:1px solid rgba(255,255,255,.15)}
 .enlistment-summary-stats>div:nth-child(2n){border-right:0}
-.enlistment-summary-stats>div:nth-last-child(-n/**/+2){border-bottom:0}
+.enlistment-summary-stats>div:nth-last-child(-n+2){border-bottom:0}
 .enlistment-summary-stats span{font-size:10px;color:#b8cce6;text-transform:uppercase;letter-spacing:.05em;font-weight:800}
 .enlistment-summary-stats strong{font-size:27px;margin-top:8px;line-height:1}
 .enlistment-summary-stats .attention strong{color:#ffd18c}
@@ -306,7 +310,7 @@
 .enlistment-filter-card{overflow:visible}
 .enlistment-workbench-head{padding:15px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line)}
 .enlistment-workbench-head strong{display:block;margin-top:5px;font-size:14px}
-.enlistment-filter-row{display:grid;grid-template-columns:minmax(260px,1.7fr) repeat(2,minmax(160px,1fr));gap:12px;padding:16px 20px;background:#fbfcff}
+.enlistment-filter-row{display:grid;grid-template-columns:minmax(260px,1.7fr) repeat(3,minmax(150px,1fr));gap:12px;padding:16px 20px;background:#fbfcff}
 .enlistment-filter-row label,.enlistment-export-controls label{display:block;min-width:0}
 .enlistment-filter-row label>span,.enlistment-export-controls label>span,.daraz-extra-grid label>span,.enlistment-notes>span{display:block;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.04em;color:#6c7890;margin-bottom:7px}
 .enlistment-filter-row select,.enlistment-export-controls select,.enlistment-target-head select,.daraz-extra-grid input,.daraz-extra-grid select,.enlistment-notes textarea{display:block;min-width:0;width:100%;padding:10px 12px;border:1px solid #dce3ee;border-radius:10px;background:#fff;color:var(--ink);font:inherit;font-size:12px}
@@ -396,7 +400,7 @@
 @media (max-width:1180px){
 .enlistment-summary-card{grid-template-columns:1fr}
 .enlistment-summary-stats{border-left:0;border-top:1px solid rgba(255,255,255,.18)}
-.enlistment-action-grid,.sos-visual-grid,.sos-panda-visual-grid{grid-template-columns:1fr}
+.enlistment-action-grid{grid-template-columns:1fr}
 }
 @media (max-width:800px){
 .enlistment-head{flex-direction:column}
@@ -477,3 +481,21 @@
 /* Enlistment bulk visibility toolbar: keep both batch actions accessible. */
 .enlistment-visibility-toolbar { flex-wrap: wrap; gap: 10px; }
 .enlistment-visibility-toolbar > div:first-child { flex: 1 1 260px; }
+
+
+/* Enlistment account-specific product URLs — integrated with the existing design */
+.enlistment-url-prompt {display:grid;gap:9px;padding:11px 0 8px}
+.enlistment-url-prompt label {font-size:11px;font-weight:800;color:var(--ink)}
+.enlistment-url-prompt label span {font-weight:500;color:var(--muted)}
+.enlistment-url-prompt input,.enlistment-target-url-field input {min-width:0;width:100%;border:1px solid #d9dfeb;border-radius:9px;padding:10px 11px;background:#fff;color:var(--ink);font:inherit;font-size:12px}
+.enlistment-url-prompt input:focus,.enlistment-target-url-field input:focus {outline:none;border-color:#86a8f3;box-shadow:0 0 0 3px rgba(21,94,239,.10)}
+.enlistment-url-prompt>small {color:var(--muted);font-size:10px;line-height:1.5}
+.enlistment-url-actions {display:flex;gap:8px}.enlistment-url-actions .button{flex:1;font-size:11px;padding:9px 8px}
+.enlistment-url-back {border:0;background:transparent;color:var(--blue);font-size:11px;text-align:center;cursor:pointer;padding:4px}
+.enlistment-target-url-field {display:flex;align-items:end;gap:9px;flex-wrap:wrap;padding:12px 0;margin:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.enlistment-target-url-field label {flex:1 1 260px;min-width:0}
+.enlistment-target-url-field label>span {display:block;margin-bottom:7px;font-size:11px;font-weight:800;color:var(--ink)}
+.enlistment-target-url-field label small {font-weight:500;color:var(--muted)}
+.enlistment-target-url-field>a {display:inline-flex;align-items:center;min-height:35px;color:var(--blue);font-size:11px;font-weight:800;text-decoration:none}
+.enlistment-target-url-field>a:hover {text-decoration:underline}
+@media(max-width:640px){.enlistment-url-actions{flex-direction:column}.enlistment-target-url-field{align-items:stretch}.enlistment-target-url-field .button{width:100%}}

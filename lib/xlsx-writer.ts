@@ -1,3 +1,4 @@
+import { deflateRawSync } from 'node:zlib';
 const XML_HEADER = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
 
 function escapeXml(value: string): string {
@@ -39,7 +40,7 @@ function dosDateTime(date = new Date()): { time: number; date: number } {
 
 type ZipPart = { name: string; data: Buffer };
 
-function makeZip(parts: ZipPart[]): Buffer {
+function makeZip(parts: ZipPart[], compress = false): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
   let offset = 0;
@@ -48,31 +49,32 @@ function makeZip(parts: ZipPart[]): Buffer {
   for (const part of parts) {
     const name = Buffer.from(part.name, 'utf8');
     const crc = crc32(part.data);
+    const content = compress ? deflateRawSync(part.data, {level: 6}) : part.data;
     const local = Buffer.alloc(30 + name.length);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4);
     local.writeUInt16LE(0, 6);
-    local.writeUInt16LE(0, 8);
+    local.writeUInt16LE(compress ? 8 : 0, 8);
     local.writeUInt16LE(stamp.time, 10);
     local.writeUInt16LE(stamp.date, 12);
     local.writeUInt32LE(crc, 14);
-    local.writeUInt32LE(part.data.length, 18);
+    local.writeUInt32LE(content.length, 18);
     local.writeUInt32LE(part.data.length, 22);
     local.writeUInt16LE(name.length, 26);
     local.writeUInt16LE(0, 28);
     name.copy(local, 30);
-    locals.push(local, part.data);
+    locals.push(local, content);
 
     const central = Buffer.alloc(46 + name.length);
     central.writeUInt32LE(0x02014b50, 0);
     central.writeUInt16LE(20, 4);
     central.writeUInt16LE(20, 6);
     central.writeUInt16LE(0, 8);
-    central.writeUInt16LE(0, 10);
+    central.writeUInt16LE(compress ? 8 : 0, 10);
     central.writeUInt16LE(stamp.time, 12);
     central.writeUInt16LE(stamp.date, 14);
     central.writeUInt32LE(crc, 16);
-    central.writeUInt32LE(part.data.length, 20);
+    central.writeUInt32LE(content.length, 20);
     central.writeUInt32LE(part.data.length, 24);
     central.writeUInt16LE(name.length, 28);
     central.writeUInt16LE(0, 30);
@@ -83,7 +85,7 @@ function makeZip(parts: ZipPart[]): Buffer {
     central.writeUInt32LE(offset, 42);
     name.copy(central, 46);
     centrals.push(central);
-    offset += local.length + part.data.length;
+    offset += local.length + content.length;
   }
 
   const centralSize = centrals.reduce((sum, b) => sum + b.length, 0);
@@ -101,9 +103,9 @@ function makeZip(parts: ZipPart[]): Buffer {
 
 export type XlsxCell = string | number | boolean | null | undefined;
 
-function cellXml(value: XlsxCell, row: number, col: number, header: boolean): string {
+function cellXml(value: XlsxCell, row: number, col: number, header: boolean, percent = false): string {
   const ref = `${colName(col)}${row}`;
-  const style = header ? ' s="1"' : '';
+  const style = header ? ' s="1"' : percent ? ' s="2"' : '';
   if (value == null || value === '') return `<c r="${ref}"${style}/>`;
   if (typeof value === 'number' && Number.isFinite(value)) return `<c r="${ref}"${style}><v>${value}</v></c>`;
   if (typeof value === 'boolean') return `<c r="${ref}" t="b"${style}><v>${value ? 1 : 0}</v></c>`;
@@ -140,4 +142,51 @@ export function makeXlsx(sheetName: string, headers: string[], rows: XlsxCell[][
     { name: 'xl/styles.xml', data: Buffer.from(styles) },
     { name: 'xl/worksheets/sheet1.xml', data: Buffer.from(sheetXml) },
   ]);
+}
+
+/** Four-sheet read-only report export (no third-party Excel runtime dependency). */
+export function makeMultiSheetXlsx(sheets: Array<{name: string; headers: string[]; rows: XlsxCell[][]; percentColumns?: number[]; freezeColumns?: number}>): Buffer {
+  if (!sheets.length || sheets.length > 100) throw new Error('Workbook must contain between 1 and 100 sheets');
+  const safeNames = new Set<string>();
+  const parts: ZipPart[] = [];
+  const sheetEntries: string[] = [];
+  const sheetRelationships: string[] = [];
+  const sheetOverrides: string[] = [];
+  for (let i = 0; i < sheets.length; i++) {
+    const {headers, rows} = sheets[i];
+    if (!headers.length) throw new Error('Workbook sheet needs at least one header');
+    let name = sheets[i].name.replace(/[\\/*?:\[\]]/g, ' ').slice(0, 31) || `Sheet${i + 1}`;
+    if (safeNames.has(name.toLowerCase())) name = `${name.slice(0, 26)} ${i + 1}`;
+    safeNames.add(name.toLowerCase());
+    const allRows = [headers, ...rows];
+    const widths = headers.map((h, col) => {
+      let width = Math.max(11, Math.min(32, h.length + 3));
+      for (const row of rows.slice(0, 80)) width = Math.min(40, Math.max(width, String(row[col] ?? '').length + 2));
+      return width;
+    });
+    const cols = widths.map((width, col) => `<col min="${col + 1}" max="${col + 1}" width="${width}" customWidth="1"/>`).join('');
+    const data = allRows.map((cells, r) => `<row r="${r + 1}">${headers.map((_, c) => cellXml(cells[c], r + 1, c, r === 0, (sheets[i].percentColumns ?? []).includes(c))).join('')}</row>`).join('');
+    const end = colName(headers.length - 1);
+    const freezeCols = Math.max(0, Math.min(headers.length - 1, sheets[i].freezeColumns ?? 1));
+    const sheet = `${XML_HEADER}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane xSplit="${freezeCols}" ySplit="1" topLeftCell="${colName(freezeCols)}2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews><cols>${cols}</cols><sheetData>${data}</sheetData><autoFilter ref="A1:${end}${Math.max(1, allRows.length)}"/></worksheet>`;
+    const number = i + 1;
+    parts.push({name: `xl/worksheets/sheet${number}.xml`, data: Buffer.from(sheet)});
+    sheetEntries.push(`<sheet name="${escapeXml(name)}" sheetId="${number}" r:id="rId${number}"/>`);
+    sheetRelationships.push(`<Relationship Id="rId${number}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${number}.xml"/>`);
+    sheetOverrides.push(`<Override PartName="/xl/worksheets/sheet${number}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`);
+  }
+  const styleRel = sheets.length + 1;
+  const workbookXml = `${XML_HEADER}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheetEntries.join('')}</sheets></workbook>`;
+  const workbookRels = `${XML_HEADER}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheetRelationships.join('')}<Relationship Id="rId${styleRel}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+  const rels = `${XML_HEADER}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const styles = `${XML_HEADER}<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F4E78"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"><alignment wrapText="1" vertical="center"/></xf><xf numFmtId="10" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const contentTypes = `${XML_HEADER}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheetOverrides.join('')}</Types>`;
+  return makeZip([
+    {name:'[Content_Types].xml',data:Buffer.from(contentTypes)},
+    {name:'_rels/.rels',data:Buffer.from(rels)},
+    {name:'xl/workbook.xml',data:Buffer.from(workbookXml)},
+    {name:'xl/_rels/workbook.xml.rels',data:Buffer.from(workbookRels)},
+    {name:'xl/styles.xml',data:Buffer.from(styles)},
+    ...parts,
+  ], true);
 }

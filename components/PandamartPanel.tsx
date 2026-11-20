@@ -56,7 +56,14 @@ type FlagRow = {
 type SalesShareSlice = { label: string; sold_qty: number; sales_value: number; sku_count: number };
 type SalesMixPeriod = { key: string; label: string; period_start: string; period_end: string; is_partial: boolean; totals: { sold_qty: number; sales_value: number; sku_count: number; mapped_sold_qty: number; mapped_sales_value: number; mapped_sku_count: number; mapping_coverage_pct: number }; brand: SalesShareSlice[]; format: SalesShareSlice[] };
 type SalesMixMetric = 'sales_value' | 'sold_qty';
-type TabKey = 'overview' | 'sales' | 'branches' | 'flags' | 'daily' | 'monthly';
+type DcGapRow = {
+  stock_date: string; account_sku: string; ubl_code: string | null;
+  product_name: string; brand: string | null; category: string | null;
+  branch_code: string; branch_name: string; branch_stock: number;
+  dc_stock: number | null; status: 'dc_available' | 'dc_empty' | 'dc_unknown';
+  mapping_status: 'mapped' | 'unmapped';
+};
+type TabKey = 'overview' | 'sales' | 'branches' | 'dc-gaps' | 'flags' | 'daily' | 'monthly';
 type AvailabilityFilter = 'all' | 'has-oos' | 'fully-available';
 type PandaSeverity = 'all' | FlagRow['severity'];
 
@@ -64,6 +71,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'sales', label: 'Sales Mix' },
   { key: 'branches', label: 'Branch OLA' },
+  { key: 'dc-gaps', label: 'Branch Availability Gaps' },
   { key: 'flags', label: 'Flags' },
   { key: 'daily', label: 'Daily History' },
   { key: 'monthly', label: 'Monthly History' },
@@ -87,6 +95,13 @@ function flagLabel(value: string) {
 
 export default function PandamartPanel() {
   const [branches, setBranches] = useState<OlaRow[]>([]);
+  const [dcGaps, setDcGaps] = useState<DcGapRow[]>([]);
+  const [dcGapDate, setDcGapDate] = useState<string | null>(null);
+  const [dcBranch, setDcBranch] = useState('all');
+  const [dcStatus, setDcStatus] = useState('all');
+  const [dcBrand, setDcBrand] = useState('all');
+  const [dcCategory, setDcCategory] = useState('all');
+  const [dcSearch, setDcSearch] = useState('');
   const [daily, setDaily] = useState<DailySummary[]>([]);
   const [monthly, setMonthly] = useState<MonthlyRow[]>([]);
   const [flags, setFlags] = useState<FlagRow[]>([]);
@@ -110,6 +125,8 @@ export default function PandamartPanel() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to load Pandamart intelligence.');
       setBranches((json.latestBranches || []).filter((r: OlaRow) => r.scope === 'branch'));
+      setDcGaps(json.dcGaps?.rows || []);
+      setDcGapDate(json.dcGaps?.stockDate || null);
       setDaily(json.daily || []); setMonthly(json.monthly || []); setFlags(json.flags || []); setSalesMix(json.salesMix?.periods || []);
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to load Pandamart intelligence.'); }
     finally { setLoading(false); }
@@ -128,6 +145,29 @@ export default function PandamartPanel() {
       return statusOk && searchOk;
     });
   }, [branches, availabilityFilter, branchSearch]);
+
+  const dcBranches = useMemo(() => [...new Set(dcGaps.map((r) => r.branch_name))].sort(), [dcGaps]);
+  const dcBrands = useMemo(() => [...new Set(dcGaps.map((r) => r.brand).filter((x): x is string => !!x))].sort(), [dcGaps]);
+  const dcCategories = useMemo(() => [...new Set(dcGaps.map((r) => r.category).filter((x): x is string => !!x))].sort(), [dcGaps]);
+  const visibleDcGaps = useMemo(() => {
+    const q = dcSearch.trim().toLowerCase();
+    return dcGaps.filter((r) =>
+      (dcBranch === 'all' || r.branch_name === dcBranch) &&
+      (dcStatus === 'all' || r.status === dcStatus) &&
+      (dcBrand === 'all' || r.brand === dcBrand) &&
+      (dcCategory === 'all' || r.category === dcCategory) &&
+      (!q || `${r.account_sku} ${r.ubl_code ?? ''} ${r.product_name} ${r.branch_name}`.toLowerCase().includes(q))
+    );
+  }, [dcGaps, dcBranch, dcStatus, dcBrand, dcCategory, dcSearch]);
+  function exportDcGaps() {
+    exportCsv(`pandamart-dc-branch-gaps-${dcGapDate ?? 'latest'}`, visibleDcGaps.map((r) => ({
+      Stock_Date: r.stock_date, UBL_SKU: r.ubl_code ?? '', Pandamart_SKU: r.account_sku,
+      Product: r.product_name, Brand: r.brand ?? '', Category: r.category ?? '',
+      Branch: r.branch_name, Branch_Stock: r.branch_stock, DC_Stock: r.dc_stock ?? '',
+      Status: r.status === 'dc_available' ? 'Replenishment opportunity' : r.status === 'dc_empty' ? 'DC shortage' : 'DC stock unknown',
+      Mapping: r.mapping_status,
+    })));
+  }
 
   const activeSalesMix = salesMix.find((row) => row.key === salesMixKey) ?? salesMix[0] ?? null;
   const mixTopBrand = activeSalesMix?.brand.filter((row) => row.label !== 'Unmapped').sort((a, b) => Number(b[salesMixMetric]) - Number(a[salesMixMetric]))[0] ?? null;
@@ -233,6 +273,28 @@ export default function PandamartPanel() {
     {latest && activeTab === 'branches' ? <>
       <section className="card account-filter-card"><div className="account-filter-head"><div><span className="eyebrow">Branch workbench</span><strong>{filteredBranches.length} of {branches.length} branches shown</strong></div><button className="button secondary compact" onClick={exportBranches} disabled={!filteredBranches.length}><Download size={15}/>Export CSV</button></div><div className="account-filter-grid two-plus-search"><SearchField value={branchSearch} onChange={setBranchSearch} placeholder="Search branch"/><FilterField label="Availability"><select value={availabilityFilter} onChange={(e) => setAvailabilityFilter(e.target.value as AvailabilityFilter)}><option value="all">All branches</option><option value="has-oos">Has unavailable products</option><option value="fully-available">Fully available</option></select></FilterField><button className="account-reset-button" type="button" onClick={() => { setBranchSearch(''); setAvailabilityFilter('all'); }}><RotateCcw size={14}/>Reset</button></div></section>
       <section className="card account-table-card"><div className="card-head"><div><h2>Latest branch OLA</h2><p>{dateLabel(latest.stock_date)} · DC excluded from customer OLA.</p></div></div>{filteredBranches.length ? <div className="table-wrap"><table className="account-rich-table"><thead><tr><th>Branch</th><th>Availability visual</th><th>Available</th><th>Out</th><th>Total</th><th>OLA</th></tr></thead><tbody>{filteredBranches.map((row) => <tr key={row.branch_code ?? row.branch_name}><td><strong>{row.branch_name}</strong></td><td><div className="account-inline-meter"><span className={olaTone(row.ola_pct)} style={{ width: `${Math.max(2, Number(row.ola_pct ?? 0))}%` }}/></div></td><td>{row.available_basepacks}</td><td><strong className={row.unavailable_basepacks > 0 ? 'text-danger' : ''}>{row.unavailable_basepacks}</strong></td><td>{row.expected_basepacks}</td><td><span className={`account-score-pill ${olaTone(row.ola_pct)}`}>{pct(row.ola_pct)}</span></td></tr>)}</tbody></table></div> : <div className="empty">No branches match these filters.</div>}</section>
+    </> : null}
+
+    {latest && activeTab === 'dc-gaps' ? <>
+      <section className="account-kpi-grid flags">
+        <div className="account-kpi danger"><span>Branch OOS gaps</span><strong>{dcGaps.length.toLocaleString()}</strong><small>Observed zero-stock SKU × branch records</small></div>
+        <div className="account-kpi"><span>DC stock available</span><strong>{dcGaps.filter((r) => r.status === 'dc_available').length.toLocaleString()}</strong><small>Potential branch replenishment opportunities</small></div>
+        <div className="account-kpi warning"><span>DC shortage</span><strong>{dcGaps.filter((r) => r.status === 'dc_empty').length.toLocaleString()}</strong><small>Branch out of stock and DC stock zero</small></div>
+        <div className="account-kpi"><span>DC unknown</span><strong>{dcGaps.filter((r) => r.status === 'dc_unknown').length.toLocaleString()}</strong><small>No DC observation for this SKU</small></div>
+      </section>
+      <section className="card account-filter-card">
+        <div className="account-filter-head"><div><span className="eyebrow">DC replenishment workbench</span><strong>{visibleDcGaps.length.toLocaleString()} of {dcGaps.length.toLocaleString()} gaps shown</strong></div><div className="account-filter-actions"><button className="account-reset-button" type="button" onClick={() => { setDcBranch('all'); setDcStatus('all'); setDcBrand('all'); setDcCategory('all'); setDcSearch(''); }}><RotateCcw size={14}/>Reset</button><button className="button secondary compact" type="button" onClick={exportDcGaps} disabled={!visibleDcGaps.length}><Download size={15}/>Export CSV</button></div></div>
+        <div className="account-filter-grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))' }}>
+          <SearchField value={dcSearch} onChange={setDcSearch} placeholder="SKU or product name"/>
+          <FilterField label="Branch"><select value={dcBranch} onChange={(e) => setDcBranch(e.target.value)}><option value="all">All branches</option>{dcBranches.map((b) => <option key={b} value={b}>{b}</option>)}</select></FilterField>
+          <FilterField label="DC status"><select value={dcStatus} onChange={(e) => setDcStatus(e.target.value)}><option value="all">All gaps</option><option value="dc_available">DC stock available</option><option value="dc_empty">DC shortage</option><option value="dc_unknown">DC unknown</option></select></FilterField>
+          <FilterField label="Brand"><select value={dcBrand} onChange={(e) => setDcBrand(e.target.value)}><option value="all">All brands</option>{dcBrands.map((b) => <option key={b} value={b}>{b}</option>)}</select></FilterField>
+          <FilterField label="Category"><select value={dcCategory} onChange={(e) => setDcCategory(e.target.value)}><option value="all">All categories</option>{dcCategories.map((c) => <option key={c} value={c}>{c}</option>)}</select></FilterField>
+        </div>
+      </section>
+      <section className="card account-table-card"><div className="card-head"><div><h2>SKU-wise branch stock gaps</h2><p>{dateLabel(dcGapDate)} · From uploaded stock snapshots. DC excluded from customer OLA. Only explicitly observed zero-stock branch cells are included.</p></div></div>
+        {visibleDcGaps.length ? <div className="table-wrap"><table className="account-rich-table"><thead><tr><th>UBL SKU</th><th>Pandamart SKU</th><th>Product</th><th>Brand</th><th>Branch</th><th>Branch stock</th><th>DC stock</th><th>Action</th></tr></thead><tbody>{visibleDcGaps.map((r) => <tr key={`${r.account_sku}:${r.branch_code}`}><td>{r.ubl_code ?? <span className="text-danger">Unmapped</span>}</td><td><strong>{r.account_sku}</strong></td><td>{r.product_name}</td><td>{r.brand ?? '—'}</td><td>{r.branch_name}</td><td><strong className="text-danger">{r.branch_stock}</strong></td><td><strong>{r.dc_stock === null ? '—' : r.dc_stock.toLocaleString()}</strong></td><td><span className={`flag-pill ${r.status === 'dc_available' ? 'watch' : r.status === 'dc_empty' ? 'critical' : 'warning'}`}>{r.status === 'dc_available' ? 'Replenish from DC' : r.status === 'dc_empty' ? 'DC shortage' : 'Check DC data'}</span></td></tr>)}</tbody></table></div> : <div className="empty">No SKU-wise gaps match these filters.</div>}
+      </section>
     </> : null}
 
     {latest && activeTab === 'flags' ? <>

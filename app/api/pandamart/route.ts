@@ -54,11 +54,14 @@ export async function GET() {
       supabase.from('v_pandamart_sales_30d').select('*').order('sold_qty_30d', { ascending: false }).limit(20),
       supabase.from('v_pandamart_flags').select('*').order('severity').limit(100),
       supabase.from('product_account_ids').select('account_sku,product_id').eq('account_id', account.data.id).range(0, 999),
-      supabase.from('products').select('id,name,brand,product_type').eq('status', 'active').range(0, 999),
+      supabase.from('products').select('id,ubl_code,name,brand,category,product_type').eq('status', 'active').range(0, 999),
     ]);
     for (const response of [latestBranches, dailySummary, monthly, sales, flags, mappings, products]) if (response.error) throw response.error;
 
     let salesMixPeriods: ReturnType<typeof buildSalesSharePeriod>[] = [];
+    // Item_Name is supplied by the Pandamart workbook's Last 30 Days Sales sheet.
+    // Preserve it as a fallback for SKUs not present in the UBL master.
+    const uploadedNames = new Map<string, string>();
     if (latestSaleDate && start30 && startMtd) {
       const rawSales = await fetchPaged((from, to) => supabase
         .from('pandamart_sales_daily')
@@ -73,6 +76,11 @@ export async function GET() {
         (products.data ?? []).map((row) => ({ id: String(row.id), name: row.name, brand: row.brand, product_type: row.product_type })),
       );
       const rows = rawSales as Array<{ sale_date: string; account_sku: string; item_name: string | null; gfv_local: number | string | null; sold_qty: number | string | null }>;
+      for (const row of rows) {
+        const sku = String(row.account_sku).trim();
+        const name = String(row.item_name ?? '').trim();
+        if (sku && name && !uploadedNames.has(sku)) uploadedNames.set(sku, name);
+      }
       const toInput = (input: typeof rows): SalesShareInputRow[] => input.map((row) => ({ account_sku: row.account_sku, item_name: row.item_name, sold_qty: row.sold_qty, sales_value: row.gfv_local }));
 
       salesMixPeriods = [
@@ -88,8 +96,104 @@ export async function GET() {
       ];
     }
 
+    // Read the most recent stored Pandamart stock snapshot. DC is a distinct
+    // branch in this table; it is never included in customer-facing OLA.
+    const latestStock = await supabase.from('pandamart_stock_daily')
+      .select('stock_date').order('stock_date', { ascending: false }).limit(1);
+    if (latestStock.error) throw latestStock.error;
+    const gapStockDate = latestStock.data?.[0]?.stock_date ? String(latestStock.data[0].stock_date) : null;
+    let dcGaps: Array<{
+      stock_date: string; account_sku: string; ubl_code: string | null;
+      product_name: string; brand: string | null; category: string | null;
+      branch_code: string; branch_name: string; branch_stock: number;
+      dc_stock: number | null; status: 'dc_available' | 'dc_empty' | 'dc_unknown';
+      mapping_status: 'mapped' | 'unmapped';
+    }> = [];
+    if (gapStockDate) {
+      const [branchResult, snapshotRows] = await Promise.all([
+        supabase.from('pandamart_branches').select('id,code,name,is_dc,active,sort_order')
+          .eq('active', true).order('sort_order'),
+        fetchPaged((from, to) => supabase.from('pandamart_stock_daily')
+          .select('account_sku,branch_id,stock_qty').eq('stock_date', gapStockDate)
+          .order('account_sku').order('branch_id').range(from, to)),
+      ]);
+      if (branchResult.error) throw branchResult.error;
+      const branchList = branchResult.data ?? [];
+      const dcIds = new Set(branchList.filter((b) => b.is_dc).map((b) => String(b.id)));
+      const branchById = new Map(branchList.filter((b) => !b.is_dc).map((b) => [String(b.id), b]));
+      const dcBySku = new Map<string, number>();
+      const observedDc = new Set<string>();
+      const branchBySkuAndId = new Map<string, number>();
+      for (const raw of snapshotRows) {
+        const r = raw as { account_sku: string; branch_id: string; stock_qty: number | string | null };
+        const sku = String(r.account_sku);
+        const qty = Number(r.stock_qty ?? 0);
+        if (dcIds.has(String(r.branch_id))) {
+          dcBySku.set(sku, (dcBySku.get(sku) ?? 0) + qty);
+          observedDc.add(sku);
+        } else if (branchById.has(String(r.branch_id))) {
+          const key = `${sku}::${r.branch_id}`;
+          branchBySkuAndId.set(key, (branchBySkuAndId.get(key) ?? 0) + qty);
+        }
+      }
+      // Search older uploaded sales rows too, because a stock SKU may have had
+      // no sales in the latest 30-day window. The stock sheet itself contains
+      // no product-name field in the current Pandamart parser.
+      const missingNames = new Set([...branchBySkuAndId.keys()].map((key) => key.slice(0, key.lastIndexOf('::'))).filter((sku) => !uploadedNames.has(sku)));
+      if (missingNames.size) {
+        const historicalNames = await fetchPaged((from, to) => supabase
+          .from('pandamart_sales_daily')
+          .select('account_sku,item_name')
+          .not('item_name', 'is', null)
+          .order('sale_date', { ascending: false })
+          .order('account_sku')
+          .range(from, to));
+        for (const raw of historicalNames) {
+          const row = raw as { account_sku: string; item_name: string | null };
+          const sku = String(row.account_sku).trim();
+          const name = String(row.item_name ?? '').trim();
+          if (missingNames.has(sku) && name && !uploadedNames.has(sku)) {
+            uploadedNames.set(sku, name);
+            missingNames.delete(sku);
+          }
+          if (!missingNames.size) break;
+        }
+      }
+      const skuProduct = new Map<string, { ubl_code: string | null; name: string; brand: string | null; category: string | null }>();
+      const productById = new Map((products.data ?? []).map((product) => [String(product.id), product]));
+      for (const mapping of mappings.data ?? []) {
+        const product = productById.get(String(mapping.product_id));
+        if (!product) continue;
+        const full = product as typeof product & { ubl_code?: string | null; category?: string | null };
+        skuProduct.set(String(mapping.account_sku), {
+          ubl_code: full.ubl_code ?? null, name: full.name ?? String(mapping.account_sku),
+          brand: full.brand ?? null, category: full.category ?? null,
+        });
+      }
+      for (const [key, qty] of branchBySkuAndId) {
+        if (qty > 0) continue;
+        const split = key.lastIndexOf('::');
+        const sku = key.slice(0, split);
+        const branch = branchById.get(key.slice(split + 2));
+        if (!branch) continue;
+        const product = skuProduct.get(sku);
+        const dcStock = observedDc.has(sku) ? dcBySku.get(sku)! : null;
+        dcGaps.push({
+          stock_date: gapStockDate, account_sku: sku,
+          ubl_code: product?.ubl_code ?? null, product_name: product?.name || uploadedNames.get(sku) || sku,
+          brand: product?.brand ?? null, category: product?.category ?? null,
+          branch_code: branch.code, branch_name: branch.name, branch_stock: qty,
+          dc_stock: dcStock,
+          status: dcStock === null ? 'dc_unknown' : dcStock > 0 ? 'dc_available' : 'dc_empty',
+          mapping_status: product ? 'mapped' : 'unmapped',
+        });
+      }
+      dcGaps.sort((a, b) => a.branch_name.localeCompare(b.branch_name) || a.product_name.localeCompare(b.product_name));
+    }
+
     return NextResponse.json({
       latestBranches: latestBranches.data ?? [],
+      dcGaps: { stockDate: gapStockDate, rows: dcGaps },
       latestSummary: dailySummary.data?.[0] ?? null,
       daily: dailySummary.data ?? [],
       monthly: monthly.data ?? [],

@@ -212,6 +212,19 @@ export async function addAccountsToProducts(productIds: string[], accountCodes: 
 export async function updateEnlistmentTarget(input: { targetId: string; status?: string; accountFields?: Record<string, unknown>; notes?: string }) {
   const supabase = getSupabaseAdmin();
   if (input.status && !ENLISTMENT_STATUSES.includes(input.status as EnlistmentStatus)) throw new Error('Invalid enlistment status.');
+  // Product URLs are optional and stored per account target in account_fields.
+  // Explicit '' clears an existing URL; an omitted product_url preserves it.
+  if (Object.prototype.hasOwnProperty.call(input.accountFields || {}, 'product_url')) {
+    const raw = input.accountFields?.product_url;
+    if (typeof raw !== 'string') throw new Error('Product URL must be a string.');
+    const cleaned = raw.trim();
+    if (cleaned) {
+      let parsed: URL;
+      try { parsed = new URL(cleaned); } catch { throw new Error('Invalid product URL.'); }
+      if (!['https:', 'http:'].includes(parsed.protocol) || !parsed.hostname) throw new Error('Product URL must start with http:// or https://.');
+    }
+    input.accountFields = { ...input.accountFields, product_url: cleaned };
+  }
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   // Merge against the latest persisted JSON so saving Daraz fields never removes the delivery tag.
   if (input.status || input.accountFields) {

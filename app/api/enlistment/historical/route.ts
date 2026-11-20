@@ -43,7 +43,7 @@ export async function POST(request:NextRequest) {
         else {const {data:prior,error:re}=await sb.from('enlistment_products').select('id,name,enlistment_key').eq('enlistment_key',props.enlistment_key).single();if(re)throw re;product=prior;}
         byName.set(normalizedName(row.name),[product]);productsCreated++;
       }
-      const {data:targets,error:te}=await sb.from('enlistment_targets').select('id,account_id,selected,status').eq('enlistment_id',product.id);if(te)throw te;
+      const {data:targets,error:te}=await sb.from('enlistment_targets').select('id,account_id,selected,status,account_fields').eq('enlistment_id',product.id);if(te)throw te;
       const byAccount=new Map((targets||[]).map((t:any)=>[t.account_id,t]));
       for(const account of parsed.accounts){
         const status=row.statuses[account.code]; if(!status)continue;
@@ -54,13 +54,20 @@ export async function POST(request:NextRequest) {
           continue;
         }
         const desired=status==='Y'?'enlisted':'pending';
+        // D is stored as pending with a JSON stage marker, matching the Enlistment Hub.
+        // Do not invent a new database enum/status; preserve other account_fields.
         if(target){
           if(!['pending','enlisted'].includes(target.status) && target.status!==desired){warnings.push(`Existing in-progress status preserved: ${row.name} / ${account.name} (${target.status})`);skipped++;continue;}
-          const change:any={selected:true,status:desired,updated_at:new Date().toISOString()};
+          const fields:Record<string,any> = {
+            ...((target.account_fields && typeof target.account_fields === 'object') ? target.account_fields : {}),
+          };
+          if(status==='D') fields.enlistment_stage='delivered_not_enlisted';
+          else delete fields.enlistment_stage;
+          const change:any={selected:true,status:desired,account_fields:fields,updated_at:new Date().toISOString()};
           if(desired==='enlisted' && target.status!=='enlisted') change.enlisted_at=new Date().toISOString();
           const {error}=await sb.from('enlistment_targets').update(change).eq('id',target.id);if(error)throw error;targetsUpdated++;
         }else{
-          const {error}=await sb.from('enlistment_targets').insert({enlistment_id:product.id,account_id:accountId,selected:true,status:desired, ...(desired==='enlisted'?{enlisted_at:new Date().toISOString()}:{}),account_fields:{historical_import:true}});if(error)throw error;targetsCreated++;
+          const {error}=await sb.from('enlistment_targets').insert({enlistment_id:product.id,account_id:accountId,selected:true,status:desired, ...(desired==='enlisted'?{enlisted_at:new Date().toISOString()}:{}),account_fields:{historical_import:true,...(status==='D'?{enlistment_stage:'delivered_not_enlisted'}:{})}});if(error)throw error;targetsCreated++;
         }
       }
     }
