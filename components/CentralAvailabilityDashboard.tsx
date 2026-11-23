@@ -502,6 +502,8 @@ export default function CentralAvailabilityDashboard() {
         <p>One presentation view of where Unilever is winning availability, where coverage is breaking, and which basepacks need action across accounts.</p>
       </div>
       <div className="central-head-actions">
+        <a className="button secondary" href="/central/priority-ola"><Target size={16}/>Priority SKU OLA</a>
+        <a className="button secondary" href="/central/basepack-compare"><Layers3 size={16}/>Basepack OLA Checker</a>
         <a className="button secondary" href="/central/url-mappings">SKU–URL Mapping Manager</a>
         <button className="button secondary" onClick={tab==='sku'?exportSkuRows:exportFiltered} disabled={tab==='sku'?!filteredSkuRows.length:!filteredRows.length}><Download size={16}/>Export {tab==='sku'?'SKUs':'basepacks'} (CSV)</button>
         <button className="button secondary" onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/>{loading?'Refreshing':'Refresh'}</button>

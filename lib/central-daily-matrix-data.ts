@@ -18,8 +18,7 @@ export type DailyMatrixQuery = {
 };
 type Run = {run_id: string; account_code: string; run_status: string; observation_date: string; finished_at: string | null; started_at: string | null};
 type Observation = {run_id: string; account_code: string; account_sku: string; branch: string | null; status: string; observed_at: string; basepack: string | null};
-type Mapping = {account_code: string; account_sku: string; product_id: string | null; packsize: string | null; product_name: string | null; brand: string | null; business_group: string | null; category: string | null};
-type Master = {id: string; brand: string | null; business_group: string | null; category: string | null; sub_category: string | null; product_type: string | null; packsize: string | null};
+type Mapping = {account_code: string; account_sku: string; packsize: string | null; product_name: string | null; brand: string | null; business_group: string | null; category: string | null; sub_category: string | null; product_type: string | null};
 
 // PostgREST pagination is mandatory: a default 1000-row result silently truncates analytics.
 async function paginate<T>(query: (offset: number, end: number) => PromiseLike<{data: T[] | null; error: {message: string} | null}>, max: number, context: string): Promise<T[]> {
@@ -63,16 +62,13 @@ export async function getDailyMatrix(query: DailyMatrixQuery): Promise<DailyMatr
     methodology: METHODOLOGY, warnings: [] as string[]}});
   if (!query.accounts.length || !dates.length) return empty();
   const db = getSupabaseAdmin();
-  const [runs, mappings, master] = await Promise.all([
+  const [runs, mappings] = await Promise.all([
     paginate<Run>((at, end) => db.from('v_ola_scraped_run_metrics').select('run_id,account_code,run_status,observation_date,finished_at,started_at')
       .in('account_code', query.accounts).gte('observation_date', `${query.month}-01`).lt('observation_date', monthEnd)
       .order('observation_date', {ascending: false}).order('finished_at', {ascending: false}).range(at, end), 20000, 'Daily scraper runs'),
-    paginate<Mapping>((at, end) => db.from('v_account_mappings').select('account_code,account_sku,product_id,packsize,product_name,brand,business_group,category')
+    paginate<Mapping>((at, end) => db.from('v_account_mappings').select('account_code,account_sku,packsize,product_name,brand,business_group,category,sub_category,product_type')
       .eq('status', 'active').in('account_code', query.accounts).order('account_code').order('account_sku').range(at, end), 100000, 'Active SKU mapping'),
-    paginate<Master>((at, end) => db.from('v_master_skus').select('id,brand,business_group,category,sub_category,product_type,packsize')
-      .order('id').range(at, end), 100000, 'Master SKU metadata'),
   ]);
-  const masterById = new Map(master.map(item => [String(item.id), item]));
   const best = new Map<string, Run>();
   for (const run of runs) {
     if (!dates.includes(run.observation_date) || !['success', 'partial'].includes(run.run_status)) continue;
@@ -89,7 +85,7 @@ export async function getDailyMatrix(query: DailyMatrixQuery): Promise<DailyMatr
     const key = `${normalizeKey(mapping.account_code)}|${sku}`;
     const old = bySku.get(key);
     if (!old) bySku.set(key, mapping);
-    else if (['product_id', 'packsize', 'product_name', 'brand', 'business_group', 'category'].some(field =>
+    else if (['packsize', 'product_name', 'brand', 'business_group', 'category', 'sub_category', 'product_type'].some(field =>
       normalizeKey(old[field as keyof Mapping]) !== normalizeKey(mapping[field as keyof Mapping]))) ambiguous.add(key);
   }
   const observations: Observation[] = [];
@@ -114,12 +110,9 @@ export async function getDailyMatrix(query: DailyMatrixQuery): Promise<DailyMatr
     if (ambiguous.has(key)) { ambiguousCount++; continue; }
     const mapping = bySku.get(key);
     if (!mapping) { unmapped++; continue; }
-    const product = masterById.get(String(mapping.product_id ?? ''));
-    const businessGroup = cleanLabel(product?.business_group ?? mapping.business_group);
-    const category = cleanLabel(product?.category ?? mapping.category);
-    const brand = cleanLabel(product?.brand ?? mapping.brand);
-    const basepack = cleanLabel(product?.packsize ?? mapping.packsize);
-    const attributes = {subCategory: cleanLabel(product?.sub_category), format: cleanLabel(product?.product_type)};
+    const businessGroup = cleanLabel(mapping.business_group), category = cleanLabel(mapping.category), brand = cleanLabel(mapping.brand);
+    const basepack = cleanLabel(mapping.packsize);
+    const attributes = {subCategory: cleanLabel(mapping.sub_category), format: cleanLabel(mapping.product_type)};
     if (!filterMatches(businessGroup, query.businessGroup) || !filterMatches(category, query.category) ||
         !filterMatches(attributes.subCategory, query.subCategory) || !filterMatches(brand, query.brand) || !filterMatches(basepack, query.basepack)) continue;
     if (query.search && ![basepack, mapping.product_name, brand, businessGroup, category, attributes.subCategory, attributes.format, account, row.account_sku]

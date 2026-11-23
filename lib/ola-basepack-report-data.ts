@@ -2,6 +2,9 @@ import {getSupabaseAdmin} from '@/lib/supabase-admin';
 import {buildBasepackWorkbook, type MappingIssue, type ReportObservation, type ReportSheet} from '@/lib/ola-basepack-report';
 import {cleanLabel,normalizeKey} from '@/lib/central-daily-matrix';
 
+import type {PrioritySku} from '@/lib/priority-ola-input';
+import {buildBasepackComparison,type BasepackComparison} from '@/lib/basepack-ola-compare';
+
 const VALID=new Set(['arogga','cartup','daraz','othoba','pandamart','shajgoj','shwapno','beauty_booth','ushop','foodi']);
 const dhakaToday=()=>{
   const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
@@ -38,8 +41,10 @@ type RawObservation={run_id:string;account_code:string;account_sku:string;branch
   stock_qty:number|null;price:number|null;product_url:string|null;source_product:string|null};
 const matches=(value:string,selected:string)=>selected==='all'||normalizeKey(value)===normalizeKey(selected);
 
-export async function loadBasepackWorkbook(query:BasepackReportQuery):Promise<{sheets:ReportSheet[];info:{runs:number;observations:number;mapped:number;issues:number;accounts:number}}> {
+export async function loadBasepackWorkbook(query:BasepackReportQuery, priorityRows?:PrioritySku[], compare=false):Promise<{sheets:ReportSheet[];info:{runs:number;observations:number;mapped:number;issues:number;accounts:number};comparison?:BasepackComparison}> {
   if(!query.accounts.length)throw new Error('Select at least one account.');
+  const priorityKeys = priorityRows ? new Set(priorityRows.map(r=>`${normalizeKey(r.account)}|${normalizeKey(r.sku)}`)) : null;
+  if (priorityRows && !priorityRows.length) throw new Error('Upload at least one priority SKU.');
   const db:DB=getSupabaseAdmin();
   const [runs,mappings,master]=await Promise.all([
     pages<Run>((a,b)=>db.from('v_ola_scraped_run_metrics').select('run_id,account_code,run_status,observation_date,finished_at,started_at')
@@ -58,7 +63,7 @@ export async function loadBasepackWorkbook(query:BasepackReportQuery):Promise<{s
     if(!old||(r.run_status==='success'&&old.run_status!=='success')||(r.run_status===old.run_status&&when(r)>when(old)))byAccountDay.set(runKey,r);
   }
   const chosen=[...byAccountDay.values()];
-  if(!chosen.length)throw new Error(`No successful or partial scraper runs were found between ${query.start} and ${query.end}.`);
+  if(!chosen.length&&!priorityRows)throw new Error(`No successful or partial scraper runs were found between ${query.start} and ${query.end}.`);
   const masterMap=new Map(master.map(item=>[String(item.id),item]));
   const mappingMap=new Map<string,Mapping>(),conflicts=new Set<string>();
   for(const mapping of mappings){const sku=normalizeKey(mapping.account_sku);if(!sku)continue;
@@ -94,6 +99,8 @@ export async function loadBasepackWorkbook(query:BasepackReportQuery):Promise<{s
     const branch=account==='pandamart'?(String(item.branch??'').trim()||'All'):'All';
     if(!sku){mark('Missing account SKU',account,branch,'','',`Run ${item.run_id}`);continue;}
     const mapKey=`${account}|${normalizeKey(sku)}`, mapping=mappingMap.get(mapKey);
+    // Priority reports never borrow availability from non-priority SKUs, even under the same basepack.
+    if(priorityKeys && !compare && !priorityKeys.has(mapKey))continue;
     const product=masterMap.get(String(mapping?.product_id??''));
     const basepack=String(product?.packsize??mapping?.packsize??'').trim();
     const businessUnit=cleanLabel(product?.business_group??mapping?.business_group??'');
@@ -117,8 +124,46 @@ export async function loadBasepackWorkbook(query:BasepackReportQuery):Promise<{s
     const old=dedup.get(evidenceKey);
     if(!old||record.observedAt>old.observedAt)dedup.set(evidenceKey,record);
   }
-  const evidence=[...dedup.values()];
-  if(!evidence.length)throw new Error('There are no OLA observations matching the selected filters.');
-  return {sheets:buildBasepackWorkbook(evidence,issues,query.start,query.end),info:{runs:chosen.length,observations:sourceRows.length,
-    mapped:evidence.filter(o=>o.basepack).length,issues:issues.length,accounts:new Set(evidence.map(o=>o.account)).size}};
+  const allEvidence=[...dedup.values()];
+  const evidence=priorityKeys && compare ? allEvidence.filter(r=>priorityKeys.has(`${normalizeKey(r.account)}|${normalizeKey(r.sku)}`)) : allEvidence;
+  if(!evidence.length&&!priorityRows)throw new Error('There are no OLA observations matching the selected filters.');
+  const sheets=buildBasepackWorkbook(evidence,issues,query.start,query.end);
+  if(priorityRows){
+    const latestBySkuBranch=new Map<string,ReportObservation>();
+    const seenBySku=new Map<string,Set<string>>();
+    for(const row of evidence){
+      const key=`${normalizeKey(row.account)}|${normalizeKey(row.sku)}`;
+      const branchKey=`${key}|${normalizeKey(row.branch)}`;
+      const prev=latestBySkuBranch.get(branchKey);
+      if(!prev||row.date>prev.date)latestBySkuBranch.set(branchKey,row);
+      const dates=seenBySku.get(key)??new Set<string>();dates.add(row.date);seenBySku.set(key,dates);
+    }
+    const detailRows:import('@/lib/xlsx-writer').XlsxCell[][]=[];
+    for(const input of priorityRows){
+      const k=`${normalizeKey(input.account)}|${normalizeKey(input.sku)}`;
+      const mapping=mappingMap.get(k),masterRow=masterMap.get(String(mapping?.product_id??''));
+      const candidates=[...latestBySkuBranch.values()].filter(r=>normalizeKey(r.account)===normalizeKey(input.account)&&normalizeKey(r.sku)===normalizeKey(input.sku));
+      if(!candidates.length){
+        detailRows.push([input.account,input.sku,input.productName,masterRow?.packsize??mapping?.packsize??'',
+          '', '',0,mapping?'No OLA observation for period':'Not mapped in active Master SKU list']);
+        if(!mapping)issues.push({type:'Unmapped priority SKU',account:input.account,branch:'',sku:input.sku,basepack:'',details:'Uploaded SKU is not mapped to an active master product.'});
+        else issues.push({type:'Priority SKU not observed',account:input.account,branch:'',sku:input.sku,basepack:masterRow?.packsize??mapping.packsize??'',details:'No OLA record for selected period; do not assume OOS.'});
+      }else for(const result of candidates.sort((a,b)=>a.branch.localeCompare(b.branch))){
+        detailRows.push([input.account,input.sku,input.productName,result.basepack,result.branch,result.date,
+          seenBySku.get(k)?.size??0,result.status]);
+      }
+    }
+    const health=sheets.find(s=>s.name==='Mapping Health');
+    if(health){
+      for(const issue of issues.filter(i=>i.type==='Unmapped priority SKU'||i.type==='Priority SKU not observed'))
+        health.rows.push([issue.type,issue.account,issue.branch,issue.sku,issue.basepack,issue.details]);
+    }
+    sheets.unshift({name:'Priority SKU Scope',headers:['Account','Priority SKU ID','Uploaded Product Name','Mapped Basepack','Branch','Latest Observed Date','Observed Days','Latest SKU Status'],rows:detailRows,freezeColumns:3});
+    const methodology=sheets.find(s=>s.name==='Methodology');
+    methodology?.rows.push(['Priority SKU filter','Only the uploaded Account + SKU ID pairs contribute to the basepack OLA. Other account SKUs mapped to the same basepack are intentionally excluded.']);
+    methodology?.rows.push(['Priority coverage','Unmapped and unobserved priority SKUs are shown in Priority SKU Scope; Unknown or missing values are never coerced to OOS.']);
+  }
+  return {sheets,info:{runs:chosen.length,observations:sourceRows.length,
+    mapped:evidence.filter(o=>o.basepack).length,issues:issues.length,accounts:new Set(evidence.map(o=>o.account)).size},
+    comparison:compare && priorityRows ? buildBasepackComparison(allEvidence,priorityRows,query.start,query.end,sheets.find(s=>s.name==='Priority SKU Scope')) : undefined};
 }

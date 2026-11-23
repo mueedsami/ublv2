@@ -13,6 +13,8 @@ const salesNav = [
   { href: '/othoba', label: 'Othoba', icon: ShoppingBag },
 ];
 const olaNav = [
+  { href: '/central/priority-ola', label: 'Priority SKU OLA', icon: BarChart3 },
+  { href: '/central/basepack-compare', label: 'Basepack OLA Checker', icon: BarChart3 },
   { href: '/ola', label: 'Monthly Overview', icon: BarChart3 },
   { href: '/ola/beauty_booth', label: 'BeautyBooth', icon: ShoppingBag },
   { href: '/ola/daraz', label: 'Daraz', icon: ShoppingBag },
@@ -41,7 +43,7 @@ const utilityNav = [
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const olaActive = pathname.startsWith('/ola');
+  const olaActive = pathname.startsWith('/ola') || pathname.startsWith('/central/priority-ola') || pathname.startsWith('/central/basepack-compare');
   const salesActive = salesNav.some(({ href }) => pathname.startsWith(href));
   const sosActive = pathname.startsWith('/sos');
   const [olaOpen, setOlaOpen] = useState(olaActive);
@@ -112,6 +114,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <Link href="/cpp" className={`nav-item ${pathname.startsWith('/cpp') ? 'active' : ''}`}>
             <BadgeDollarSign size={18} strokeWidth={1.8} />
             <span>CPP</span>
+          </Link>
+
+          <Link href="/price-compliance" className={`nav-item ${pathname.startsWith('/price-compliance') ? 'active' : ''}`}>
+            <BadgeDollarSign size={18} strokeWidth={1.8} />
+            <span>Price Compliance</span>
           </Link>
 
           <div className={`nav-group ${sosOpen ? 'open' : ''} ${sosActive ? 'active' : ''}`}>
