@@ -25,8 +25,12 @@ async function readAll(db: DB, table: string, order: string, columns = '*', filt
     query = query.range(offset, offset + pageSize - 1);
     const { data, error } = await query;
     if (error) throw new Error(`${table}: ${error.message}`);
-    result.push(...((data ?? []) as Row[]));
-    if ((data ?? []).length < pageSize) return result;
+    const page: unknown[] = data ?? [];
+    if (!page.every(row => typeof row === 'object' && row !== null && !Array.isArray(row))) {
+      throw new Error(`${table}: Expected database row objects, got an unexpected response.`);
+    }
+    result.push(...(page as Row[]));
+    if (page.length < pageSize) return result;
   }
   throw new Error(`${table} exceeded 100,000 rows. Refusing an incomplete availability report.`);
 }
