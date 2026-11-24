@@ -8,10 +8,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     if (body.action === 'set-selection') {
       if (!body.productId || !Array.isArray(body.accountCodes)) throw new Error('productId and accountCodes are required.');
-      await setProductAccounts(String(body.productId), body.accountCodes.map(String));
+      const result = await setProductAccounts(String(body.productId), body.accountCodes);
+      return NextResponse.json({ ok:true, ...result });
     } else if (body.action === 'add-accounts') {
       if (!Array.isArray(body.productIds) || !Array.isArray(body.accountCodes)) throw new Error('productIds and accountCodes are required.');
-      await addAccountsToProducts(body.productIds.map(String), body.accountCodes.map(String));
+      const result = await addAccountsToProducts(body.productIds, body.accountCodes);
+      return NextResponse.json({ ok:true, ...result });
     } else if (body.action === 'update-target') {
       if (!body.targetId) throw new Error('targetId is required.');
       await updateEnlistmentTarget({

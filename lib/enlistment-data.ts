@@ -26,7 +26,7 @@ export async function getEnlistmentPanelData(input: EnlistmentListQuery = {}) {
   const visibility = input.visibility === 'hidden' ? 'hidden' : 'visible';
 
   const [{ data: accounts, error: accountError }, { data: imports }, { data: exports }] = await Promise.all([
-    supabase.from('accounts').select('id,code,name').order('name'),
+    supabase.from('accounts').select('id,code,name,active').order('name'),
     supabase.from('enlistment_imports').select('*').order('imported_at', { ascending: false }).limit(8),
     supabase.from('enlistment_exports').select('id,account_id,export_format,file_name,row_count,exported_at').order('exported_at', { ascending: false }).limit(12),
   ]);
@@ -156,57 +156,130 @@ export async function setEnlistmentProductVisibility(productIds: string[], visib
   return data.length;
 }
 
-export async function setProductAccounts(productId: string, accountCodes: string[]) {
-  const supabase = getSupabaseAdmin();
-  const { data: accounts, error: accountError } = await supabase.from('accounts').select('id,code').eq('active', true);
-  if (accountError) throw accountError;
-  const wanted = new Set(accountCodes.map((code) => code.toLowerCase()));
-  const selectedIds = (accounts || []).filter((a: any) => wanted.has(String(a.code).toLowerCase())).map((a: any) => a.id);
-
-  const { data: existing, error: existingError } = await supabase.from('enlistment_targets').select('id,account_id').eq('enlistment_id', productId);
-  if (existingError) throw existingError;
-  const existingByAccount = new Map((existing || []).map((row: any) => [row.account_id, row]));
-
-  if (existing?.length) {
-    const deselectIds = existing.filter((row: any) => !selectedIds.includes(row.account_id)).map((row: any) => row.id);
-    if (deselectIds.length) {
-      const { error } = await supabase.from('enlistment_targets').update({ selected: false, updated_at: new Date().toISOString() }).in('id', deselectIds);
-      if (error) throw error;
-    }
+/**
+ * Enlistment is not restricted by accounts.active: that switch controls
+ * platform monitoring, not eligibility for a manually managed enlistment.
+ * Reject unknown codes rather than silently saving fewer accounts.
+ */
+async function resolveEnlistmentAccounts(supabase: ReturnType<typeof getSupabaseAdmin>, codes: string[]) {
+  if (!Array.isArray(codes) || codes.some(code => typeof code !== 'string')) {
+    throw new Error('Choose valid account names.');
   }
-
-  for (const accountId of selectedIds) {
-    const old = existingByAccount.get(accountId) as any;
-    if (old) {
-      const { error } = await supabase.from('enlistment_targets').update({ selected: true, updated_at: new Date().toISOString() }).eq('id', old.id);
-      if (error) throw error;
-    } else {
-      const { error } = await supabase.from('enlistment_targets').insert({ enlistment_id: productId, account_id: accountId, selected: true, status: 'pending' });
-      if (error) throw error;
-    }
-  }
+  const wanted = [...new Set(codes.map(code => code.trim().toLowerCase()).filter(Boolean))];
+  const {data, error} = await supabase.from('accounts').select('id,code');
+  if (error) throw error;
+  const lookup = new Map((data || []).map(account => [String(account.code).toLowerCase(), account]));
+  const unknown = wanted.filter(code => !lookup.has(code));
+  if (unknown.length) throw new Error(`Unknown account(s): ${unknown.join(', ')}. Refresh the enlistment page.`);
+  return wanted.map(code => lookup.get(code)!);
 }
 
-export async function addAccountsToProducts(productIds: string[], accountCodes: string[]) {
-  const supabase = getSupabaseAdmin();
-  const { data: accounts, error: accountError } = await supabase.from('accounts').select('id,code').eq('active', true);
-  if (accountError) throw accountError;
-  const wanted = new Set(accountCodes.map((code) => code.toLowerCase()));
-  const selectedAccounts = (accounts || []).filter((a: any) => wanted.has(String(a.code).toLowerCase()));
+const chunks = <T,>(items:T[], size:number):T[][] => {
+  const out:T[][]=[];
+  for(let i=0;i<items.length;i+=size)out.push(items.slice(i,i+size));
+  return out;
+};
 
-  for (const productId of productIds) {
-    for (const account of selectedAccounts as any[]) {
-      const { data: existing, error: e1 } = await supabase.from('enlistment_targets').select('id').eq('enlistment_id', productId).eq('account_id', account.id).maybeSingle();
-      if (e1) throw e1;
-      if (existing) {
-        const { error } = await supabase.from('enlistment_targets').update({ selected: true, updated_at: new Date().toISOString() }).eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('enlistment_targets').insert({ enlistment_id: productId, account_id: account.id, selected: true, status: 'pending' });
-        if (error) throw error;
-      }
-    }
+/** Save exact target-account selection, retaining historical status and fields. */
+export async function setProductAccounts(productId: string, accountCodes: string[]) {
+  if (!productId) throw new Error('Choose a product first.');
+  if (accountCodes.length > 100) throw new Error('Too many account selections.');
+  const supabase = getSupabaseAdmin();
+  const selectedAccounts = await resolveEnlistmentAccounts(supabase, accountCodes);
+  const selectedIds = new Set(selectedAccounts.map(a=>a.id));
+  const {data:product, error:productError} = await supabase.from('enlistment_products').select('id').eq('id',productId).maybeSingle();
+  if(productError)throw productError;
+  if(!product)throw new Error('Product no longer exists. Refresh the list.');
+
+  const {data:existing, error:existingError} = await supabase.from('enlistment_targets')
+    .select('id,account_id,selected').eq('enlistment_id',productId);
+  if(existingError)throw existingError;
+  const byAccount=new Map((existing||[]).map(row=>[row.account_id,row]));
+  const toCreate=selectedAccounts.filter(a=>!byAccount.has(a.id));
+  const toRestore=(existing||[]).filter(row=>selectedIds.has(row.account_id)&&!row.selected);
+  const toRemove=(existing||[]).filter(row=>!selectedIds.has(row.account_id)&&row.selected);
+  const stamp=new Date().toISOString();
+
+  // Add and restore first. If an insert fails, previously selected accounts
+  // are not silently removed before the save completes.
+  if(toCreate.length){
+    const {data,error}=await supabase.from('enlistment_targets').insert(toCreate.map(account=>({
+      enlistment_id:productId,account_id:account.id,selected:true,status:'pending',
+    }))).select('id');
+    if(error)throw error;
+    if(data?.length!==toCreate.length)throw new Error('Not all new account mappings were created. Refresh before retrying.');
   }
+  if(toRestore.length){
+    const {data,error}=await supabase.from('enlistment_targets')
+      .update({selected:true,updated_at:stamp}).in('id',toRestore.map(t=>t.id)).select('id');
+    if(error)throw error;
+    if(data?.length!==toRestore.length)throw new Error('Not all existing accounts were restored. Refresh before retrying.');
+  }
+  if(toRemove.length){
+    const {data,error}=await supabase.from('enlistment_targets')
+      .update({selected:false,updated_at:stamp}).in('id',toRemove.map(t=>t.id)).select('id');
+    if(error)throw error;
+    if(data?.length!==toRemove.length)throw new Error('Not all deselected accounts were saved. Refresh and review.');
+  }
+
+  // Verify the persisted selection; never return a false OK to the Manage UI.
+  const {data:after,error:verifyError}=await supabase.from('enlistment_targets')
+    .select('account_id,selected').eq('enlistment_id',productId);
+  if(verifyError)throw verifyError;
+  const actual = new Set((after||[]).filter(t=>t.selected).map(t=>t.account_id));
+  if(actual.size!==selectedIds.size || [...selectedIds].some(id=>!actual.has(id))) {
+    throw new Error('Saved account selections did not match your request. Refresh and review before retrying.');
+  }
+  return {selectedAccounts:actual.size,created:toCreate.length,restored:toRestore.length,deselected:toRemove.length};
+}
+
+/** Bulk-add account targets without resetting any existing progress or statuses. */
+export async function addAccountsToProducts(productIds: string[], accountCodes: string[]) {
+  if (!Array.isArray(productIds) || productIds.length<1 || productIds.length>200) throw new Error('Select 1–200 products.');
+  const uniqueProducts=[...new Set(productIds.map(id=>String(id).trim()))];
+  if(uniqueProducts.some(id=>!/^[0-9a-f-]{10,}$/i.test(id)))throw new Error('Invalid product selection. Refresh the page.');
+  const supabase=getSupabaseAdmin();
+  const accounts=await resolveEnlistmentAccounts(supabase,accountCodes);
+  if(!accounts.length)throw new Error('Choose at least one target account.');
+  const accountIds=accounts.map(a=>a.id);
+  const {data:products,error:productError}=await supabase.from('enlistment_products').select('id').in('id',uniqueProducts);
+  if(productError)throw productError;
+  if(new Set((products||[]).map(p=>p.id)).size!==uniqueProducts.length)throw new Error('Some selected products no longer exist. Refresh before retrying.');
+
+  let created=0,restored=0,alreadySelected=0;
+  for(const group of chunks(uniqueProducts,20)){
+    // 20 products x max 22 accounts stays below the PostgREST 1,000-row default.
+    const {data:existing,error:readError}=await supabase.from('enlistment_targets')
+      .select('id,enlistment_id,account_id,selected').in('enlistment_id',group).in('account_id',accountIds);
+    if(readError)throw readError;
+    const byKey=new Map((existing||[]).map(t=>[`${t.enlistment_id}|${t.account_id}`,t]));
+    const toCreate:{enlistment_id:string;account_id:string;selected:boolean;status:string}[]=[];
+    const toRestore:string[]=[];
+    for(const productId of group)for(const accountId of accountIds){
+      const prev=byKey.get(`${productId}|${accountId}`);
+      if(!prev)toCreate.push({enlistment_id:productId,account_id:accountId,selected:true,status:'pending'});
+      else if(!prev.selected)toRestore.push(prev.id);
+      else alreadySelected++;
+    }
+    if(toCreate.length){
+      const {data,error}=await supabase.from('enlistment_targets').insert(toCreate).select('id');
+      if(error)throw error;
+      if(data?.length!==toCreate.length)throw new Error('Some bulk targets were not created; refresh to see which before retrying.');
+      created+=data.length;
+    }
+    if(toRestore.length){
+      const {data,error}=await supabase.from('enlistment_targets').update({selected:true,updated_at:new Date().toISOString()}).in('id',toRestore).select('id');
+      if(error)throw error;
+      if(data?.length!==toRestore.length)throw new Error('Some existing bulk targets were not restored; refresh and review.');
+      restored+=data.length;
+    }
+    const {data:verified,error:verifyError}=await supabase.from('enlistment_targets')
+      .select('enlistment_id,account_id,selected').in('enlistment_id',group).in('account_id',accountIds);
+    if(verifyError)throw verifyError;
+    const valid=new Set((verified||[]).filter(t=>t.selected).map(t=>`${t.enlistment_id}|${t.account_id}`));
+    if(valid.size!==group.length*accountIds.length)throw new Error('Bulk account verification failed. Refresh and review the product list.');
+  }
+  return {products:uniqueProducts.length,accounts:accountIds.length,created,restored,alreadySelected};
 }
 
 export async function updateEnlistmentTarget(input: { targetId: string; status?: string; accountFields?: Record<string, unknown>; notes?: string }) {
@@ -247,8 +320,9 @@ export async function updateEnlistmentTarget(input: { targetId: string; status?:
     update.account_fields = fields;
   }
   if (input.notes !== undefined) update.notes = input.notes || null;
-  const { error } = await supabase.from('enlistment_targets').update(update).eq('id', input.targetId);
+  const { data: saved, error } = await supabase.from('enlistment_targets').update(update).eq('id', input.targetId).select('id').maybeSingle();
   if (error) throw error;
+  if (!saved) throw new Error('No account record was updated. Refresh and try again.');
 }
 
 function computedMargin(product: any): number | null {

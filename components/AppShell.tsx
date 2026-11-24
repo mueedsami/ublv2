@@ -16,6 +16,7 @@ const olaNav = [
   { href: '/central/priority-ola', label: 'Priority SKU OLA', icon: BarChart3 },
   { href: '/central/basepack-compare', label: 'Basepack OLA Checker', icon: BarChart3 },
   { href: '/ola', label: 'Monthly Overview', icon: BarChart3 },
+  { href: '/ola/matrix', label: 'OLA Matrix', icon: BarChart3 },
   { href: '/ola/beauty_booth', label: 'BeautyBooth', icon: ShoppingBag },
   { href: '/ola/daraz', label: 'Daraz', icon: ShoppingBag },
   { href: '/ola/arogga', label: 'Arogga', icon: Store },

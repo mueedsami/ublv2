@@ -13,11 +13,11 @@ const states:Record<Severity,string> = {critical:'Large gap',warning:'Review',al
 const classFor = (state:Severity):string => `pcm-${state}`;
 
 function Cell({cell, severity}: {cell:PlatformPrice|undefined; severity:Severity}) {
-  if (!cell || cell.price === null) return <td className="pcm-empty-cell"><span>—</span><small>No captured price</small></td>;
+  if (!cell || cell.price === null) return <td className="pcm-empty-cell"><span>—</span><small>No price in today's scrape</small></td>;
   const effective = cell.excludedReason ? 'pcm-stale' : severity === 'insufficient' ? 'pcm-insufficient' : classFor(severity);
   return <td className={`pcm-price-cell ${effective}`} title={`${cell.listingCount} listing(s) • ${cell.branchCount} branch(es) • Last seen ${date(cell.observedAt)}${cell.url?` • ${cell.url}`:''}`}>
     <strong>{money(cell.price)}</strong>
-    <small>{cell.excludedReason ? `${cell.excludedReason} · excluded` : cell.deviationPct!==null ? `${cell.deviationPct>0?'+':''}${cell.deviationPct.toFixed(1)}% vs median` : 'Only one fresh platform'}</small>
+    <small>{cell.excludedReason ? `${cell.excludedReason} · excluded` : cell.deviationPct!==null ? `${cell.deviationPct>0?'+':''}${cell.deviationPct.toFixed(1)}% vs median` : 'Only one priced platform today'}</small>
     {cell.branchCount>1 && <small className="pcm-branch-note">{money(cell.low)}–{money(cell.high)} · {cell.branchCount} branches</small>}
     {cell.listingCount>1 && cell.branchCount===1 && <small className="pcm-branch-note">{cell.listingCount} mapped listings</small>}
     {cell.url && <a href={cell.url} target="_blank" rel="noopener noreferrer" className="pcm-source-link" onClick={e=>e.stopPropagation()}>Product page</a>}
@@ -33,7 +33,7 @@ function ProductTable({bp, accounts}: {bp:BasepackComparison; accounts:PriceMatr
         {accounts.map(a=><Cell key={a.code} cell={product.platformPrices[a.code]} severity={product.severity}/>)}
         <td><div className={`pcm-flag ${classFor(product.severity)}`}>{states[product.severity]}</div>
           <strong className="pcm-spread">{pct(product.spreadPct)}</strong>
-          <small className="pcm-muted">{product.comparablePlatforms} fresh platforms</small>
+          <small className="pcm-muted">{product.comparablePlatforms} priced platforms today</small>
           {product.minPrice!==null && <small className="pcm-muted">{money(product.minPrice)} – {money(product.maxPrice)}</small>}
         </td>
       </tr>)}</tbody>
@@ -45,7 +45,6 @@ export default function PriceCompliancePage() {
   const [data,setData]=useState<PriceMatrixData|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
-  const [days,setDays]=useState('14');
   const [threshold,setThreshold]=useState('10,20');
   const [query,setQuery]=useState('');
   const [brand,setBrand]=useState('all');
@@ -56,11 +55,11 @@ export default function PriceCompliancePage() {
   const [refreshKey,setRefreshKey]=useState(0);
   const requestPath=useMemo(()=>{
     const [warning,critical]=threshold.split(',');
-    return `/api/price-compliance?days=${days}&warning=${warning}&critical=${critical}`;
-  },[days,threshold]);
+    return `/api/price-compliance?warning=${warning}&critical=${critical}`;
+  },[threshold]);
   useEffect(()=>{
     const controller=new AbortController();
-    setLoading(true);setError('');
+    setLoading(true);setError('');setData(null);
     fetch(requestPath,{cache:'no-store',signal:controller.signal})
       .then(async res=>{const json=await res.json(); if(!res.ok) throw new Error(json.error||`HTTP ${res.status}`); return json as PriceMatrixData;})
       .then(result=>{setData(result);setExpanded(result.basepacks.filter(bp=>bp.critical>0).slice(0,2).map(bp=>bp.id));setVisibleCodes(old=>old.length?old:result.accounts.map(a=>a.code));})
@@ -85,7 +84,7 @@ export default function PriceCompliancePage() {
     <header className="page-head">
       <div><div className="eyebrow">Digital shelf intelligence / Scraped pricing</div>
         <h1>Price Compliance Matrix</h1>
-        <p>Find suspicious price gaps for the same mapped product across retail platforms. Independent of CPP.</p>
+        <p>Compare only today’s scraped prices for the same mapped product across retail platforms. Independent of CPP.</p>
       </div>
       <div className="pcm-head-actions">
         <button className="button secondary" onClick={()=>setRefreshKey(x=>x+1)} disabled={loading}><RefreshCw size={16}/> Refresh</button>
@@ -93,14 +92,14 @@ export default function PriceCompliancePage() {
       </div>
     </header>
     <nav className="pcm-layer-nav" aria-label="Price compliance views"><span className="pcm-layer-active">Cross-platform Price Gaps</span><Link href="/price-compliance/cpp-audit" className="pcm-layer-link">CPP Cross-check from Daily Scrape →</Link></nav>
-    <div className="pcm-source-strip"><Tag size={16}/><span><strong>Source:</strong> OLA scraping prices · <strong>Latest accepted scrape:</strong> {date(data?.asOf)} · <strong>Lookback:</strong> {days} days (up to 4 latest successful runs/account)</span></div>
+    <div className="pcm-source-strip"><Tag size={16}/><span><strong>Today (Bangladesh time):</strong> {data?.reportDate||"Loading…"} · <strong>Latest completed scrape today:</strong> {data?.asOf?new Date(data.asOf).toLocaleString("en-BD",{timeZone:"Asia/Dhaka",day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"No completed scrape today"} · <strong>Scope:</strong> today’s observations only; no previous-day price fallback.</span></div>
     {error && <div className="pcm-error"><AlertCircle size={18}/><span>{error}</span></div>}
     <section className="pcm-controls card">
-      <div className="pcm-control-row">
+      <div className="pcm-control-row" style={{gridTemplateColumns:"minmax(220px,2fr) repeat(3,minmax(140px,1fr))"}}>
         <label><span>Search product, basepack or SKU</span><div className="pcm-search"><Search size={16}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search all mapped products..."/></div></label>
         <label><span>Brand</span><select value={brand} onChange={e=>setBrand(e.target.value)}><option value="all">All brands</option>{brands.map(v=><option key={v} value={v}>{v}</option>)}</select></label>
         <label><span>Flag status</span><select value={severity} onChange={e=>setSeverity(e.target.value)}><option value="all">All statuses</option><option value="critical">Large gap</option><option value="warning">Review</option><option value="aligned">Aligned</option><option value="insufficient">Insufficient data</option></select></label>
-        <label><span>Scrape lookback</span><select value={days} onChange={e=>setDays(e.target.value)}><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></label>
+        
         <label><span>Gap thresholds</span><select value={threshold} onChange={e=>setThreshold(e.target.value)}><option value="10,20">10% / 20%</option><option value="5,15">5% / 15%</option><option value="15,30">15% / 30%</option></select></label>
       </div>
       <div className="pcm-column-toggle"><button type="button" onClick={()=>setShowColumns(v=>!v)}><ChevronDown size={15}/> Platform columns ({visibleAccounts.length})</button>
@@ -112,13 +111,14 @@ export default function PriceCompliancePage() {
       <div className="pcm-kpi pcm-critical"><small><AlertTriangle size={14}/> Large gaps</small><strong>{loading?'…':data?.summary.critical||0}</strong><span>≥ {data?.thresholdCritical??20}% spread</span></div>
       <div className="pcm-kpi pcm-warning"><small>Review</small><strong>{loading?'…':data?.summary.warning||0}</strong><span>≥ {data?.thresholdWarning??10}% spread</span></div>
       <div className="pcm-kpi pcm-aligned"><small><CircleCheck size={14}/> Aligned</small><strong>{loading?'…':data?.summary.aligned||0}</strong><span>Below warning threshold</span></div>
-      <div className="pcm-kpi"><small>Insufficient data</small><strong>{loading?'…':data?.summary.insufficient||0}</strong><span>Under 2 fresh platforms</span></div>
+      <div className="pcm-kpi"><small>Insufficient data</small><strong>{loading?'…':data?.summary.insufficient||0}</strong><span>Under 2 priced platforms today</span></div>
     </section>
-    <div className="pcm-legend"><span><i className="pcm-key pcm-key-critical"/> Red: ≥ critical spread</span><span><i className="pcm-key pcm-key-warning"/> Amber: review gap</span><span><i className="pcm-key pcm-key-aligned"/> Green: prices aligned</span><span><i className="pcm-key pcm-key-muted"/> Grey: missing or stale</span></div>
+    <div className="pcm-legend"><span><i className="pcm-key pcm-key-critical"/> Red: ≥ critical spread</span><span><i className="pcm-key pcm-key-warning"/> Amber: review gap</span><span><i className="pcm-key pcm-key-aligned"/> Green: prices aligned</span><span><i className="pcm-key pcm-key-muted"/> Grey: no comparable price today</span></div>
     <section className="card pcm-results">
       <div className="card-head"><div><h2>Basepack → Product → Platform price</h2><p>{filtered.length} basepacks shown · Expand to compare exact SKUs.</p></div></div>
-      {loading?<div className="empty">Reading current scraper data and master SKU mappings…</div>:
+      {loading?<div className="empty">Reading today’s scraper prices and master SKU mappings…</div>:
        !data?<div className="empty">Price information unavailable.</div>:
+       !data.asOf?<div className="empty">No completed daily scrape for today ({data.reportDate}, Bangladesh time). Yesterday’s prices are intentionally excluded.</div>:
        filtered.length===0?<div className="empty">No basepacks match your filters.</div>:
        <div className="pcm-groups">{filtered.map(bp=><div className="pcm-group" key={bp.id}>
           <button type="button" className="pcm-group-head" onClick={()=>toggle(bp.id)} aria-expanded={expanded.includes(bp.id)}>
@@ -129,6 +129,6 @@ export default function PriceCompliancePage() {
           {expanded.includes(bp.id)&&<ProductTable bp={bp} accounts={visibleAccounts}/>}
         </div>)}</div>}
     </section>
-    {data && <div className="pcm-footnote"><strong>How the flags work:</strong> prices come exclusively from <code>ola_scrape_observations.price</code>, matched by account SKU to the master product and basepack. The red/amber threshold uses (highest − lowest) ÷ lowest price among fresh platform observations for the <strong>same exact product</strong>. Platform prices with multiple branch/listing observations use their median; the branch range remains visible. Prices older than 72 hours relative to now or the latest accepted scraper snapshot, and OOS/stock-unknown prices, are excluded from flag calculations. Missing, unmapped and stale prices are never counted as zero. A gap is an investigation flag, not proof of incorrect pricing or a CPP violation. <strong>Mapped price records:</strong> {data.summary.mappedPriceRows.toLocaleString()} · <strong>Unmapped:</strong> {data.summary.unmappedPriceRows.toLocaleString()} · <strong>Ambiguous:</strong> {data.summary.ambiguousPriceRows.toLocaleString()}.</div>}
+    {data && <div className="pcm-footnote"><strong>How the flags work:</strong> prices come exclusively from <code>ola_scrape_observations.price</code>, matched by account SKU to the master product and basepack. The red/amber threshold uses (highest − lowest) ÷ lowest price among fresh platform observations for the <strong>same exact product</strong>. Platform prices with multiple branch/listing observations use their median; the branch range remains visible. Only observations captured today (Bangladesh time) in today’s selected completed runs can enter the matrix. OOS or stock-unknown prices are excluded from gap flags. A missing price or missing daily scrape is not counted as zero; previous-day prices are never carried forward. A gap is an investigation flag, not proof of incorrect pricing or a CPP violation. <strong>Mapped price records:</strong> {data.summary.mappedPriceRows.toLocaleString()} · <strong>Unmapped:</strong> {data.summary.unmappedPriceRows.toLocaleString()} · <strong>Ambiguous:</strong> {data.summary.ambiguousPriceRows.toLocaleString()}.</div>}
   </div>;
 }

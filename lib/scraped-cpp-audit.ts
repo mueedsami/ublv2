@@ -17,7 +17,7 @@ export type AccountAudit = {
 };
 export type AuditData = {
   source: 'ola_scrape_observations.price + cpp_targets.expected_price';
-  asOf: string; freshnessHours: number;
+  asOf: string; reportDate: string; freshnessHours: number;
   summary: {cppAccounts:number; cppSkus:number; evaluated:number; violations:number; withinTolerance:number;
     compliant:number; exceptions:number; excludedScrapeSkus:number; ambiguousCppSkus:number; cppRowsWithoutSku:number;};
   accounts: AccountAudit[]; rows: AuditRow[];
@@ -148,7 +148,7 @@ export function buildScrapedCppAudit(input:{
       exceptions:mine.filter(x=>!['compliant','within_tolerance','violation'].includes(x.status)).length,
       latestScrape:dates.at(-1)||null};
   }).sort((a,b)=>a.name.localeCompare(b.name));
-  return {source:'ola_scrape_observations.price + cpp_targets.expected_price',asOf:nowISO,freshnessHours,
+  return {source:'ola_scrape_observations.price + cpp_targets.expected_price',asOf:nowISO,reportDate:dhakaDay(nowISO),freshnessHours,
     summary:{cppAccounts:accounts.length,cppSkus:cppByKey.size,evaluated:evaluated.length,cppRowsWithoutSku,
       violations:evaluated.filter(r=>r.status==='violation').length,withinTolerance:evaluated.filter(r=>r.status==='within_tolerance').length,
       compliant:evaluated.filter(r=>r.status==='compliant').length,exceptions:rows.length-evaluated.length,

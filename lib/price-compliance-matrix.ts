@@ -22,7 +22,7 @@ export type BasepackComparison = {
   comparable: number; severity: Severity;
 };
 export type PriceMatrixData = {
-  source: string; asOf: string | null; freshnessHours: number; thresholdWarning: number;
+  source: string; asOf: string | null; reportDate: string; freshnessHours: number; thresholdWarning: number;
   thresholdCritical: number; accounts: {code: string; name: string}[];
   basepacks: BasepackComparison[]; summary: {
     products: number; basepacks: number; critical: number; warning: number;
@@ -55,7 +55,7 @@ const toDateMs = (value: string): number => {
 
 export function buildPriceMatrix(input: {
   accounts: DBRow[]; products: DBRow[]; basepacks: DBRow[];
-  mappings: DBRow[]; observations: DBRow[]; latestObservation: string | null;
+  mappings: DBRow[]; observations: DBRow[]; latestObservation: string | null; reportDate?: string;
   accountCodes?: string[];
   warning?: number; critical?: number; freshnessHours?: number;
 }): PriceMatrixData {
@@ -177,6 +177,7 @@ export function buildPriceMatrix(input: {
   }).sort((a,b) => ({critical:0,warning:1,aligned:2,insufficient:3}[a.severity] - {critical:0,warning:1,aligned:2,insufficient:3}[b.severity]) || a.packsize.localeCompare(b.packsize));
   return {
     source: 'ola_scrape_observations.price', asOf: input.latestObservation,
+    reportDate:input.reportDate || new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),
     freshnessHours, thresholdWarning:warning, thresholdCritical:critical,
     accounts, basepacks, summary: {
       products: usedProducts.size, basepacks: basepacks.length, ...totals,

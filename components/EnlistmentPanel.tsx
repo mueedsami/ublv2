@@ -1,10 +1,10 @@
 'use client';
 import { createPortal } from 'react-dom';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Download, Eye, EyeOff, FileSpreadsheet, PackagePlus, RefreshCw, RotateCcw, Search, Upload, X } from 'lucide-react';
 
-type Account = { id: string; code: string; name: string };
+type Account = { id: string; code: string; name: string; active?: boolean };
 type Target = {
   id: string;
   enlistment_id: string;
@@ -115,6 +115,7 @@ export default function EnlistmentPanel() {
   const [bulkAccounts, setBulkAccounts] = useState<string[]>([]);
   const [exportAccount, setExportAccount] = useState('');
   const [exportType, setExportType] = useState<'xlsx'|'csv'>('xlsx');
+  const closeProductDrawer = useCallback(() => setOpenProductId(null), []);
 
   async function load(nextPage = page, nextSearch = searchTerm, nextAccount = accountFilter, nextStatus = statusFilter) {
     const requestId = ++latestLoad.current;
@@ -211,11 +212,12 @@ export default function EnlistmentPanel() {
   }
 
   async function setAccounts(product: Product, accountCodes: string[]) {
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setNotice('');
     try {
       const res = await fetch('/api/enlistment/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set-selection', productId: product.id, accountCodes }) });
-      const json = await res.json(); if (!res.ok) throw new Error(json.error || 'Failed to save target accounts.');
+      const json = await res.json(); if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to save target accounts.');
       await load();
+      setNotice(`Saved and verified ${json.selectedAccounts} account(s) for ${product.name}. ${json.created} new, ${json.restored} restored, ${json.deselected} deselected. Existing statuses and URLs were preserved.`);
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to save target accounts.'); }
     finally { setBusy(false); }
   }
@@ -267,9 +269,9 @@ export default function EnlistmentPanel() {
     setBusy(true); setError('');
     try {
       const res = await fetch('/api/enlistment/targets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'add-accounts', productIds: [...checked], accountCodes: bulkAccounts }) });
-      const json = await res.json(); if (!res.ok) throw new Error(json.error || 'Failed to assign accounts.');
-      setNotice(`Added ${bulkAccounts.length} account${bulkAccounts.length === 1 ? '' : 's'} to ${checked.size} selected product${checked.size === 1 ? '' : 's'}. Existing statuses were preserved.`);
+      const json = await res.json(); if (!res.ok || !json.ok) throw new Error(json.error || 'Failed to assign accounts.');
       setBulkAccounts([]); await load();
+      setNotice(`Verified assignment across ${json.products} product(s) and ${json.accounts} account(s): ${json.created} new, ${json.restored} restored, ${json.alreadySelected} already selected. Existing statuses and URLs were preserved.`);
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to assign accounts.'); }
     finally { setBusy(false); }
   }
@@ -423,9 +425,9 @@ export default function EnlistmentPanel() {
           <td><div className="enlistment-product-cell"><span className="enlistment-product-mark">{(product.brand || product.name || 'P').slice(0,1).toUpperCase()}</span><div><strong>{product.name}</strong><small>{product.brand || '—'} · {product.category || '—'}</small></div></div></td>
           <td><span className="mono">{product.barcode || '—'}</span></td>
           <td><strong>{money(product.tp)} TP</strong><small>{money(product.mrp)} MRP</small></td>
-          <td>{activeTargets.length ? <div className="enlistment-product-progress"><div className="enlistment-product-progress-head"><span className="enlistment-row-counts"><b className="enlistment-count-enlisted">{productEnlisted}/{activeTargets.length} enlisted</b><b className="enlistment-count-not">{productNotEnlisted}/{activeTargets.length} not enlisted</b><b className="enlistment-count-delivered">{productDelivered}/{activeTargets.length} delivered · not enlisted</b></span><b className={hasAttention ? 'attention' : ''}>{progress}%</b></div><div className="enlistment-product-progress-track"><span style={{ width: `${progress}%` }}/></div><div className="enlistment-status-pills">{activeTargets.map((target) => <button type="button" key={target.id} className={`dashboard-badge enlistment-clickable-capsule ${statusClass[statusKey(target)]}`} onClick={(event) => openCapsuleEditor(event, product.id, target.id)} aria-label={`Change ${target.account?.name || 'account'} status for ${product.name}`} title="Click to change status">{target.account?.name || 'Account'} · {statusLabels[statusKey(target)]}</button>)}</div></div> : <span className="enlistment-unassigned">No account selected</span>}</td>
+          <td>{activeTargets.length ? <div className="enlistment-product-progress"><div className="enlistment-product-progress-head"><span className="enlistment-row-counts"><b className="enlistment-count-enlisted">{productEnlisted}/{activeTargets.length} enlisted</b><b className="enlistment-count-not">{productNotEnlisted}/{activeTargets.length} not enlisted</b><b className="enlistment-count-delivered">{productDelivered}/{activeTargets.length} delivered · not enlisted</b></span><b className={hasAttention ? 'attention' : ''}>{progress}%</b></div><div className="enlistment-product-progress-track"><span style={{ width: `${progress}%` }}/></div><div className="enlistment-status-pills">{activeTargets.map((target) => <span key={target.id} style={{display:'inline-flex',alignItems:'center',gap:5,flexWrap:'wrap'}}><button type="button" className={`dashboard-badge enlistment-clickable-capsule ${statusClass[statusKey(target)]}`} onClick={(event) => openCapsuleEditor(event, product.id, target.id)} aria-label={`Change ${target.account?.name || 'account'} status for ${product.name}`} title="Click to change status">{target.account?.name || 'Account'} · {statusLabels[statusKey(target)]}</button>{validProductUrl(String(target.account_fields?.product_url || '')) && <a href={String(target.account_fields.product_url).trim()} target="_blank" rel="noopener noreferrer" className="button secondary compact" style={{padding:'4px 7px',fontSize:11}} title={`Open ${target.account?.name || 'account'} product listing in a new tab`} onClick={(event)=>event.stopPropagation()}><Eye size={12}/>View Item</a>}</span>)}</div></div> : <span className="enlistment-unassigned">No account selected</span>}</td>
           <td>{formatDate(product.updated_at)}</td>
-          <td><div className="enlistment-row-actions"><button className="button secondary compact" onClick={() => setOpenProductId(product.id)}>Manage</button><button type="button" className="button secondary compact enlistment-hide-btn" disabled={busy} onClick={() => void changeVisibility([product.id], visibility !== 'visible')}>{visibility === 'visible' ? <EyeOff size={14}/> : <Eye size={14}/>} {visibility === 'visible' ? 'Hide' : 'Restore'}</button></div></td>
+          <td><div className="enlistment-row-actions"><button className="button secondary compact" onClick={() => {setError('');setNotice('');setOpenProductId(product.id);}}>Manage</button><button type="button" className="button secondary compact enlistment-hide-btn" disabled={busy} onClick={() => void changeVisibility([product.id], visibility !== 'visible')}>{visibility === 'visible' ? <EyeOff size={14}/> : <Eye size={14}/>} {visibility === 'visible' ? 'Hide' : 'Restore'}</button></div></td>
         </tr>; })}
       </tbody></table></div>}
     </section>
@@ -461,19 +463,20 @@ export default function EnlistmentPanel() {
             if (status === 'enlisted' && statusKey(target) !== 'enlisted') { setQuickEnlistUrl(''); setQuickEnlistPrompt(true); return; }
             setQuickEdit(null); await updateTarget(target, { status });
           }}><span>{statusLabels[status]}</span>{statusKey(target) === status && <Check size={15}/>}</button>)}
+          {validProductUrl(String(target.account_fields?.product_url || '')) && <a className="button secondary compact" href={String(target.account_fields.product_url).trim()} target="_blank" rel="noopener noreferrer" style={{marginTop:8,display:'flex',width:'100%'}}><Eye size={14}/>View Item</a>}
           <button type="button" className="enlistment-quick-full-details" onClick={() => { setQuickEdit(null); setOpenProductId(product.id); }}>Full account details</button>
         </div>
       </div>, document.body);
     })()}
 
-    {openProduct && <ProductDrawer product={openProduct} accounts={accounts} statuses={data?.statuses || []} busy={busy} onClose={() => setOpenProductId(null)} onSetAccounts={setAccounts} onUpdateTarget={updateTarget}/>} 
+    {openProduct && <ProductDrawer key={openProduct.id} product={openProduct} accounts={accounts} statuses={data?.statuses || []} busy={busy} error={error} notice={notice} onClose={closeProductDrawer} onSetAccounts={setAccounts} onUpdateTarget={updateTarget}/>} 
 
     {!!data?.exports?.length && <section className="card enlistment-history-card"><div className="card-head"><div><h2>Recent exports</h2><p>Prepared marketplace files. Exporting does not automatically change workflow status.</p></div><span className="enlistment-history-count">{data.exports.length} recent</span></div><div className="enlistment-history-list">{data.exports.map((row: any) => <div className="enlistment-history-row" key={row.id}><div className="enlistment-history-file"><span className="enlistment-history-icon"><FileSpreadsheet size={16}/></span><div><strong>{row.file_name}</strong><span>{row.account?.name || 'Account'} · {String(row.export_format || '').toUpperCase()}</span></div></div><div className="enlistment-history-meta"><span>{row.row_count} product{Number(row.row_count)===1?'':'s'}</span><span>{formatDate(row.exported_at)}</span></div></div>)}</div></section>}
   </div>;
 }
 
-function ProductDrawer({ product, accounts, statuses, busy, onClose, onSetAccounts, onUpdateTarget }: {
-  product: Product; accounts: Account[]; statuses: string[]; busy: boolean; onClose: () => void;
+function ProductDrawer({ product, accounts, statuses, busy, error, notice, onClose, onSetAccounts, onUpdateTarget }: {
+  product: Product; accounts: Account[]; statuses: string[]; busy: boolean; error: string; notice: string; onClose: () => void;
   onSetAccounts: (product: Product, codes: string[]) => Promise<void>;
   onUpdateTarget: (target: Target, patch: { status?: string; accountFields?: Record<string, any>; notes?: string }) => Promise<void>;
 }) {
@@ -483,6 +486,14 @@ function ProductDrawer({ product, accounts, statuses, busy, onClose, onSetAccoun
   const attentionTargets = selectedTargets.filter((t) => statusKey(t) === 'delivered_not_enlisted').length;
   const drawerProgress = selectedTargets.length ? Math.round((enlistedTargets / selectedTargets.length) * 100) : 0;
   const [chosen, setChosen] = useState<string[]>(selected);
+  const previousSelection = new Set(selected);
+  const pendingAdds = chosen.filter(code => !previousSelection.has(code));
+  const pendingRemovals = selected.filter(code => !chosen.includes(code));
+  const selectionChanged = pendingAdds.length > 0 || pendingRemovals.length > 0;
+  const saveAccountChanges = () => {
+    if (pendingRemovals.length && !window.confirm(`Deselect ${pendingRemovals.length} account(s) for this product? Their previous statuses and saved URLs will be retained.`)) return;
+    void onSetAccounts(product, chosen);
+  };
 
   useEffect(() => setChosen(selected), [product.id, product.targets.map((t) => `${t.id}:${t.selected}`).join('|')]);
 
@@ -507,7 +518,9 @@ function ProductDrawer({ product, accounts, statuses, busy, onClose, onSetAccoun
       <Info label="Category" value={product.category}/><Info label="TP" value={money(product.tp)}/><Info label="MRP" value={money(product.mrp)}/><Info label="Shelf life" value={product.shelf_life_days == null ? null : `${product.shelf_life_days} days`}/><Info label="Pcs per CRM" value={product.pcs_per_crm}/><Info label="Country" value={product.country_of_origin}/><Info label="Supplier" value={product.supplier_name}/><Info label="Certification" value={product.cert_license}/><Info label="Source status" value={product.source_status}/>
     </div>{product.image_url && <a href={product.image_url} target="_blank" rel="noreferrer" className="enlistment-image-link">Open image folder / URL ↗</a>}{product.description && <details><summary>Product description</summary><p className="enlistment-description">{product.description}</p></details>}</section>
 
-    <section className="enlistment-drawer-section"><div className="section-title-row"><div><h3>Target accounts</h3><p>Manual selection only. The source file's platform columns are ignored.</p></div><button className="button secondary compact" onClick={() => void onSetAccounts(product, chosen)} disabled={busy}>Save accounts</button></div><div className="enlistment-drawer-accounts">{accounts.map((a) => <label key={a.id} className={chosen.includes(a.code) ? 'selected' : ''}><input type="checkbox" checked={chosen.includes(a.code)} onChange={(e) => setChosen((old) => e.target.checked ? [...old, a.code] : old.filter((x) => x !== a.code))}/><div><strong>{a.name}</strong><span>{accountFormat(a.code)}</span></div></label>)}</div></section>
+    <section className="enlistment-drawer-section"><div className="section-title-row"><div><h3>Target accounts</h3><p>Select any existing account. Monitoring-inactive accounts can still be managed for enlistment. {selectionChanged ? `${pendingAdds.length} to add · ${pendingRemovals.length} to remove (unsaved)` : `${selected.length} account(s) saved`}</p></div><button type="button" className="button secondary compact" onClick={saveAccountChanges} disabled={busy || !selectionChanged}>{busy ? 'Saving…' : 'Save accounts'}</button></div>
+    {error && <div className="alert error" role="alert" style={{margin:'8px 0'}}>{error}</div>}{notice && <div className="alert success" role="status" style={{margin:'8px 0'}}>{notice}</div>}
+    <div className="enlistment-drawer-accounts">{accounts.map((a) => <label key={a.id} className={chosen.includes(a.code) ? 'selected' : ''}><input type="checkbox" checked={chosen.includes(a.code)} disabled={busy} onChange={(e) => setChosen((old) => e.target.checked ? [...old, a.code] : old.filter((x) => x !== a.code))}/><div><strong>{a.name}</strong><span>{accountFormat(a.code)}{a.active === false ? ' · Monitoring inactive' : ''}</span></div></label>)}</div></section>
 
     <section className="enlistment-drawer-section"><h3>Account progress</h3>{product.targets.filter((t) => t.selected).length ? <div className="enlistment-target-cards">{product.targets.filter((t) => t.selected).map((target) => <TargetCard key={target.id} target={target} statuses={statuses} busy={busy} onUpdate={onUpdateTarget}/>)}</div> : <div className="empty compact">Select accounts above and save to create account-specific tracking.</div>}</section>
   </aside></div>, document.body) : null;
@@ -543,7 +556,7 @@ function TargetCard({ target, statuses, busy, onUpdate }: { key?: string; target
         <input type="url" value={productUrl} onChange={(e) => setProductUrl(e.target.value)} placeholder="https://store.example.com/product/..." />
       </label>
       <button type="button" className="button secondary compact" disabled={busy || (productUrl.trim() !== '' && !validProductUrl(productUrl))} onClick={() => void onUpdate(target, { accountFields: { product_url: productUrl.trim() } })}>Save URL</button>
-      {validProductUrl(String(target.account_fields?.product_url || '')) && <a href={String(target.account_fields.product_url)} target="_blank" rel="noopener noreferrer">View product ↗</a>}
+      {validProductUrl(String(target.account_fields?.product_url || '')) && <a className="button secondary compact" href={String(target.account_fields.product_url).trim()} target="_blank" rel="noopener noreferrer" title="Open saved listing in a new tab"><Eye size={14}/>View Item</a>}
     </div>
     {daraz && <div className="daraz-extra-fields"><p>Daraz-specific fields</p><div className="daraz-extra-grid">
       <Field label="Product Weight" value={fields.product_weight} onChange={(v) => set('product_weight', v)}/><Field label="New Shop SKU" value={fields.new_shop_sku} onChange={(v) => set('new_shop_sku', v)}/><Field label="Daraz Seller SKU" value={fields.daraz_seller_sku} onChange={(v) => set('daraz_seller_sku', v)}/><Field label="NEW SP" value={fields.new_sp} onChange={(v) => set('new_sp', v)}/><Field label="NEW COGP override" value={fields.new_cogp} onChange={(v) => set('new_cogp', v)} placeholder="Auto: TP ÷ 1.05"/><Field label="Supplier Code" value={fields.supplier_code} onChange={(v) => set('supplier_code', v)}/>

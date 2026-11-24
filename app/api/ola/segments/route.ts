@@ -1,36 +1,53 @@
-import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import {NextResponse} from 'next/server';
+import {getSupabaseAdmin} from '@/lib/supabase-admin';
 export const runtime='nodejs';
 export const dynamic='force-dynamic';
-const ACCOUNTS=['arogga','cartup','daraz','othoba','pandamart','shajgoj','shwapno'];
+export const maxDuration=60;
 type Row=Record<string,unknown>;
-const str=(v:unknown)=>String(v??'').trim();
-const lower=(v:unknown)=>str(v).toLowerCase();
-async function readRows(kind:'observation'|'mapping'){
- const db=getSupabaseAdmin();const output:Row[]=[];
- for(let i=0;i<100000;i+=500){
-  const q=kind==='observation'
-   ?db.from('v_ola_scraped_latest').select('account_code,account_sku,basepack,branch,status,observed_at,source_product,stock_qty,product_url').in('account_code',ACCOUNTS).order('account_code').order('account_sku').range(i,i+499)
-   :db.from('v_account_mappings').select('account_code,account_sku,packsize,product_name,brand,business_group,category,status').eq('status','active').in('account_code',ACCOUNTS).order('account_code').order('account_sku').range(i,i+499);
-  const {data,error}=await q;if(error)throw error;
-  output.push(...(data??[]) as Row[]);
-  if(!data||data.length<500)return output;
+const ACCOUNTS=['arogga','cartup','daraz','othoba','pandamart','shajgoj','shwapno'];
+const s=(v:unknown)=>String(v??'').trim();
+const norm=(v:unknown)=>s(v).toLowerCase();
+async function pageAll(table:string,columns:string,active:boolean):Promise<Row[]>{
+ const sb=getSupabaseAdmin();const all:Row[]=[];
+ for(let offset=0;offset<30000;offset+=1000){
+  let q=sb.from(table).select(columns).in('account_code',ACCOUNTS)
+   .order('account_code').order('account_sku').range(offset,offset+999);
+  if(active)q=q.eq('status','active');
+  const {data,error}=await q;
+  if(error)throw new Error(`${table}: ${error.message}`);
+  const part:unknown=data??[];
+  if(!Array.isArray(part))throw new Error(`${table}: unexpected response`);
+  for(const row of part)if(row&&typeof row==='object'&&!Array.isArray(row))all.push(row as Row);
+  if(part.length<1000)return all;
  }
- throw new Error('Report exceeds 100000 rows; refusing incomplete results');
+ throw new Error(`${table} exceeds 30,000 rows; the report was not partially returned.`);
 }
 export async function GET(){
  try{
-  const [observations,mappings]=await Promise.all([readRows('observation'),readRows('mapping')]);
-  const mapped=new Map<string,Row>();const ambiguous=new Set<string>();
-  for(const m of mappings){const sku=lower(m.account_sku);if(!sku)continue;const k=`${lower(m.account_code)}|${sku}`;
-   if(mapped.has(k)){const prev=mapped.get(k)!;if(['brand','business_group','category','packsize'].some(x=>str(prev[x])!==str(m[x])))ambiguous.add(k)}else mapped.set(k,m);
+  const [obs,mappings]=await Promise.all([
+   pageAll('v_ola_scraped_latest','account_code,account_sku,basepack,branch,status,observed_at,source_product,stock_qty,product_url',false),
+   pageAll('v_account_mappings','account_code,account_sku,product_id,packsize,product_name,brand,business_group,category,status',true),
+  ]);
+  const index=new Map<string,Row>();const ambiguous=new Set<string>();
+  for(const m of mappings){const code=norm(m.account_code),sku=norm(m.account_sku);if(!sku)continue;
+   const key=`${code}|${sku}`,previous=index.get(key);
+   if(previous&&s(previous.product_id)!==s(m.product_id))ambiguous.add(key);
+   else if(!previous)index.set(key,m);
   }
-  let missing=0,unmapped=0,ambiguousCount=0;const rows=[];
-  for(const o of observations){const account=lower(o.account_code),sku=lower(o.account_sku);if(!sku){missing++;continue;}
-   const k=`${account}|${sku}`;if(ambiguous.has(k)){ambiguousCount++;continue;}
-   const m=mapped.get(k);if(!m){unmapped++;continue;}
-   const status=lower(o.status);rows.push({account,sku:str(o.account_sku),branch:str(o.branch)||'All',business_unit:str(m.business_group)||'Unclassified',brand:str(m.brand)||'Unclassified',category:str(m.category)||'Unclassified',product:str(m.product_name)||str(o.source_product)||'Unnamed',basepack:str(o.basepack)||str(m.packsize),status:status==='available'?'available':status==='unavailable'?'unavailable':'unknown',stock_qty:o.stock_qty??null,observed_at:str(o.observed_at),product_url:str(o.product_url)});
+  let missing=0,unmapped=0,conflicts=0;
+  const rows:Row[]=[];
+  for(const o of obs){const code=norm(o.account_code),sku=norm(o.account_sku);if(!sku){missing++;continue;}
+   const key=`${code}|${sku}`;if(ambiguous.has(key)){conflicts++;continue;}
+   const master=index.get(key);if(!master){unmapped++;continue;}
+   const status=norm(o.status);
+   rows.push({account:code,sku:s(o.account_sku),branch:s(o.branch)||'All',
+    business_unit:s(master.business_group)||'Unclassified',brand:s(master.brand)||'Unclassified',
+    category:s(master.category)||'Unclassified',product:s(master.product_name)||s(o.source_product)||'Unnamed',
+    basepack:s(o.basepack)||s(master.packsize),status:status==='available'?'available':status==='unavailable'?'unavailable':'unknown',
+    stock_qty:o.stock_qty??null,observed_at:s(o.observed_at),product_url:s(o.product_url)});
   }
-  return NextResponse.json({rows,meta:{mapped_rows:rows.length,unmapped_rows:unmapped,ambiguous_mapping_rows:ambiguousCount,missing_sku_rows:missing,methodology:'Latest scraped OLA snapshot joined by exact normalized account SKU to active Master mappings. Available / (Available + OOS) is confirmed OLA; Unknown excluded. PandaMart may include one observation per SKU–branch. No historical brand trends are inferred.'}},{headers:{'Cache-Control':'no-store'}});
- }catch(error){return NextResponse.json({error:error instanceof Error?error.message:'OLA segments unavailable'},{status:500});}
+  return NextResponse.json({rows,meta:{mapped_rows:rows.length,unmapped_rows:unmapped,ambiguous_mapping_rows:conflicts,
+   missing_sku_rows:missing,methodology:'Latest per-account scrape from v_ola_scraped_latest, joined by exact account and SKU to active mappings. Unknown excluded from confirmed availability; PandaMart branches remain distinct.'}},
+   {headers:{'Cache-Control':'no-store'}});
+ }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Segment intelligence unavailable'}, {status:503,headers:{'Cache-Control':'no-store'}})}
 }

@@ -1,101 +1,156 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDownRight, ArrowUpRight, CalendarDays, Check, ChevronLeft, ChevronRight, Download, RefreshCw, Search, SlidersHorizontal } from 'lucide-react';
+import {useCallback,useEffect,useMemo,useState} from 'react';
+import {ArrowDownToLine,ArrowLeft,ArrowRight,BarChart3,CalendarDays,RefreshCw,Search,TrendingDown} from 'lucide-react';
+import type {OlaMonthAccount,OlaDay,OlaOverview} from '@/lib/ola-live-metrics';
 
-type Day = { date:string; ola_pct:number|null; available:number|null; unavailable:number|null; unknown:number|null; checked:number|null; status:string|null };
-type Account = { code:string; label:string; kind?:string; rows:Day[]; observed_days:number; valid_days:number; avg_ola_pct:number|null };
-type Overview = { month:string; dates:string[]; accounts:Account[]; methodology:string };
-type AccountData = { code:string; label:string; kind?:string; days:Day[]; latest:Day|null; mean:number|null; previousMean:number|null; delta:number|null; validDays:number; possibleDays:number };
-type Week = { key:string; start:string; end:string; label:string; values:Record<string,number|null>; counts:Record<string,number> };
-const fmt = (v:number|null|undefined, digits=1) => v==null?'—':`${v.toFixed(digits)}%`;
-const monthNow = () => { const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit'}).formatToParts(new Date()); return `${parts.find(p=>p.type==='year')?.value}-${parts.find(p=>p.type==='month')?.value}`; };
-const monthShift = (month:string,diff:number) => { const [y,m]=month.split('-').map(Number); const dt=new Date(Date.UTC(y,m-1+diff,1)); return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}`; };
-const utcDay=(d:string)=>new Date(`${d}T12:00:00Z`);
-const dayString=(d:Date)=>d.toISOString().slice(0,10);
-const offsetDays=(date:string,n:number)=>{const d=utcDay(date);d.setUTCDate(d.getUTCDate()+n);return dayString(d);};
-const monday=(date:string)=>offsetDays(date,-((utcDay(date).getUTCDay()+6)%7));
-const avg=(vals:number[])=> vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
-const clean=(v:number|null|undefined)=>v==null?'':v.toFixed(2);
-const COLORS=['#2563eb','#0d9488','#a855f7','#e08b2f','#db4b65','#4f75a0','#16a34a','#8b5cf6','#64748b','#c084fc'];
-const colorFor=(code:string,all:AccountData[])=>COLORS[Math.max(0,all.findIndex(a=>a.code===code))%COLORS.length];
-const download=(name:string,rows:(string|number|null|undefined)[][])=>{
- const s='\uFEFF'+rows.map(row=>row.map(v=>`"${String(v??'').replace(/^[=+@\-\t\r]/,m=>`'${m}`).replace(/"/g,'""')}"`).join(',')).join('\r\n');
- const blob=new Blob([s],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),500);
-};
-function Delta({value}:{value:number|null}){if(value===null)return <span className="olai-muted">No comparison</span>;return <span className={`olai-delta ${value>0.01?'up':value< -0.01?'down':'flat'}`}>{value>0.01?<ArrowUpRight size={14}/>:value< -0.01?<ArrowDownRight size={14}/>:null}{value>0?'+':''}{value.toFixed(1)} pp</span>}
-function TrendChart({weeks,accounts}:{weeks:Week[];accounts:AccountData[]}){
- const width=850,height=260,l=45,r=14,t=16,b=38;
- const x=(i:number)=>l+(width-l-r)*(weeks.length<=1?0.5:i/(weeks.length-1));
- const y=(v:number)=>t+(height-t-b)*(1-v/100);
- return <div className="olai-chart-scroll"><svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Eight-week account OLA comparison; missing weeks are omitted" className="olai-line-svg">
-  {[0,25,50,75,100].map(v=><g key={v}><line x1={l} y1={y(v)} x2={width-r} y2={y(v)} stroke="#dce5ee" strokeDasharray="4 5"/><text x={l-9} y={y(v)+4} fill="#728197" fontSize="12" textAnchor="end">{v}%</text></g>)}
-  {weeks.map((week,i)=><text key={week.key} x={x(i)} y={height-12} fill="#728197" fontSize="11" textAnchor="middle">{week.label}</text>)}
-  {accounts.map(a=>{const segments:string[][]=[];let active:string[]=[];weeks.forEach((w,i)=>{const n=w.values[a.code];if(n===null){if(active.length)segments.push(active);active=[];}else active.push(`${x(i)},${y(n)}`);});if(active.length)segments.push(active);return <g key={a.code}>
-   {segments.map((s,i)=>s.length>1?<polyline key={i} points={s.join(' ')} fill="none" stroke={colorFor(a.code,accounts)} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>:null)}
-   {weeks.map((w,i)=>w.values[a.code]===null?null:<circle key={w.key} cx={x(i)} cy={y(w.values[a.code]!)} r="4.4" fill={colorFor(a.code,accounts)} stroke="white" strokeWidth="1.5"><title>{a.label} · {w.start} to {w.end}: {fmt(w.values[a.code])} ({w.counts[a.code]} observed days)</title></circle>)}
-  </g>})}
- </svg></div>;
+type Previous={month:string;accounts:Array<{code:string;avg_ola_pct:number|null;valid_days:number}>};
+type Payload=OlaOverview&{previous:Previous};
+type Chosen={code:string;date:string}|null;
+const group=['arogga','cartup','daraz','othoba','pandamart','shajgoj','shwapno'];
+const percent=(n:number|null|undefined)=>n===null||n===undefined?'—':`${n.toFixed(1)}%`;
+const comma=(n:number|null|undefined)=>n===null||n===undefined?'—':n.toLocaleString('en-US');
+const todayMonth=()=>{const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit'}).formatToParts(new Date());const f=(key:string)=>p.find(a=>a.type===key)?.value??'';return `${f('year')}-${f('month')}`;};
+const shift=(month:string,amount:number)=>{const[y,m]=month.split('-').map(Number);const x=new Date(Date.UTC(y,m-1+amount,1));return `${x.getUTCFullYear()}-${String(x.getUTCMonth()+1).padStart(2,'0')}`;};
+const labelMonth=(m:string)=>new Date(`${m}-01T12:00:00Z`).toLocaleString('en-US',{month:'long',year:'numeric',timeZone:'UTC'});
+const labelDay=(d:string)=>new Date(`${d}T12:00:00Z`).toLocaleString('en-US',{day:'numeric',weekday:'short',timeZone:'UTC'});
+const tone=(v:number|null)=>v===null?'none':v>=80?'good':v>=60?'warn':'bad';
+function saveCSV(filename:string,rows:Array<Array<string|number|null|undefined>>){
+  const csv='\uFEFF'+rows.map(row=>row.map(value=>{
+    let text=String(value??'');if(/^[\s]*[=+@\-\t\r]/.test(text))text=`'${text}`;
+    return `"${text.replaceAll('"','""')}"`;
+  }).join(',')).join('\r\n');
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  const link=document.createElement('a');link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove();
+  window.setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-function ShareBar({available,unavailable,unknown}:{available:number;unavailable:number;unknown:number}){const all=available+unavailable+unknown;return <div className="olai-stackbar" role="img" aria-label={`${available} available, ${unavailable} OOS, ${unknown} unknown`}>
-  {all===0?<span className="olai-stackempty"/>:<><span style={{width:`${available/all*100}%`,background:'#23a274'}}/><span style={{width:`${unavailable/all*100}%`,background:'#dc5265'}}/><span style={{width:`${unknown/all*100}%`,background:'#a6b5c9'}}/></>}
- </div>}
-export default function OlaIntelligenceDashboard(){
- const[month,setMonth]=useState(monthNow);const[response,setResponse]=useState<{current:Overview;previous:Overview;earlier:Overview}|null>(null);const[loading,setLoading]=useState(true);const[error,setError]=useState('');const[chosen,setChosen]=useState<string[]>([]);const[initialized,setInitialized]=useState(false);const[query,setQuery]=useState('');const[showCatalog,setShowCatalog]=useState(false);
- const load=useCallback(async()=>{setLoading(true);setError('');try{
-  const months=[month,monthShift(month,-1),monthShift(month,-2)];const result=await Promise.all(months.map(async m=>{const r=await fetch(`/api/ola/overview?month=${m}`,{cache:'no-store'});const body=await r.json();if(!r.ok)throw new Error(body.error||`Could not load OLA for ${m}`);return body as Overview;}));setResponse({current:result[0],previous:result[1],earlier:result[2]});
- }catch(e){setError(e instanceof Error?e.message:'Cannot load OLA information');setResponse(null);}finally{setLoading(false)}},[month]);
- useEffect(()=>{void load()},[load]);
- const localParts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Dhaka',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
- const todayDhaka=`${localParts.find(p=>p.type==='year')?.value}-${localParts.find(p=>p.type==='month')?.value}-${localParts.find(p=>p.type==='day')?.value}`;
- const periodEnd=month===monthNow()?todayDhaka:offsetDays(`${monthShift(month,1)}-01`,-1);
- const monthStart=`${month}-01`;
- const previousMonthStart=`${monthShift(month,-2)}-01`;
- const accounts=useMemo<AccountData[]>(()=>{
-  if(!response)return [];
-  return response.current.accounts.map(acc=>{
-   const p=response.previous.accounts.find(x=>x.code===acc.code);
-   const earlier=response.earlier.accounts.find(x=>x.code===acc.code);
-   const days=[...(earlier?.rows??[]),...(p?.rows??[]),...acc.rows].filter(d=>d.date<=periodEnd&&d.date>=previousMonthStart).sort((a,b)=>a.date.localeCompare(b.date));
-   const validMonth=acc.rows.filter(d=>d.date<=periodEnd&&d.ola_pct!==null).map(d=>Number(d.ola_pct));
-   const lastMonth=(p?.rows??[]).filter(d=>d.ola_pct!==null).map(d=>Number(d.ola_pct));
-   const mean=avg(validMonth),previousMean=avg(lastMonth);
-   const latest=[...acc.rows].filter(x=>x.date<=periodEnd&&x.status!==null).sort((a,b)=>b.date.localeCompare(a.date))[0]??null;
-   const possibleDays=Math.max(0,Number(periodEnd.slice(8)));
-   return {code:acc.code,label:acc.label,kind:acc.kind,days,latest,mean,previousMean,delta:mean!==null&&previousMean!==null?mean-previousMean:null,validDays:validMonth.length,possibleDays};
+function Graph({data}:{data:OlaDay[]}){
+  const W=800,H=180,L=38,R=13,T=16,B=29;
+  const x=(i:number)=>L+(W-L-R)*(i/Math.max(1,data.length-1));
+  const y=(v:number)=>T+(H-T-B)*(100-v)/100;
+  let segment:Array<string>=[];const paths:Array<string[]>=[];
+  const values=data.map((day,i)=>{
+    if(day.ola_pct===null){if(segment.length)paths.push(segment);segment=[];return null;}
+    const pt={x:x(i),y:y(day.ola_pct),d:day.date,v:day.ola_pct};segment.push(`${pt.x},${pt.y}`);return pt;
   });
- },[response,periodEnd,previousMonthStart]);
- useEffect(()=>{if(!response||initialized)return;setChosen(accounts.filter(a=>a.kind!=='catalog'&&a.days.some(d=>d.ola_pct!==null)).map(a=>a.code));setInitialized(true);},[response,accounts,initialized]);
- const visible=accounts.filter(a=>(showCatalog||a.kind!=='catalog')&&(chosen.includes(a.code)));
- const selectable=accounts.filter(a=>showCatalog||a.kind!=='catalog');
- const weeks=useMemo<Week[]>(()=>{
-  const end=monday(periodEnd);const starts=Array.from({length:8},(_,i)=>offsetDays(end,(i-7)*7));
-  return starts.map(start=>{const stop=offsetDays(start,6);const values:Record<string,number|null>={};const counts:Record<string,number>={};for(const a of accounts){const valid=a.days.filter(d=>d.date>=start&&d.date<=stop&&d.date<=periodEnd&&d.ola_pct!==null).map(d=>d.ola_pct!);values[a.code]=avg(valid);counts[a.code]=valid.length;}return {key:start,start,end:stop,label:new Date(start+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}),values,counts};});
- },[accounts,periodEnd]);
- const display=visible.filter(a=>a.label.toLowerCase().includes(query.toLowerCase()));
- const ranked=[...display].sort((a,b)=>(b.mean??-1)-(a.mean??-1));
- const latestStatus=display.reduce((s,a)=>{s.available+=Math.max(0,a.latest?.available??0);s.unavailable+=Math.max(0,a.latest?.unavailable??0);s.unknown+=Math.max(0,a.latest?.unknown??0);return s;},{available:0,unavailable:0,unknown:0});
- const known=latestStatus.available+latestStatus.unavailable;
- const reportAvg=avg(display.map(a=>a.mean).filter((v):v is number=>v!==null));
- const prevAvg=avg(display.filter(a=>a.mean!==null&&a.previousMean!==null).map(a=>a.previousMean!));
- const pairedCurrentAvg=avg(display.filter(a=>a.mean!==null&&a.previousMean!==null).map(a=>a.mean!));
- const coverage=display.reduce((s,a)=>s+a.validDays,0),possible=display.reduce((s,a)=>s+a.possibleDays,0);
- const populated=display.filter(a=>a.mean!==null).length;
- const exportWeekly=()=>download(`UBL_OLA_Weekly_${month}.csv`,[['Week start','Week end','Account','Source','Average OLA (%)','Observed days'],...weeks.flatMap(w=>display.map(a=>[w.start,w.end,a.label,a.kind==='catalog'?'Catalog':'Mapped',clean(w.values[a.code]),w.counts[a.code]]))]);
- const exportDaily=()=>download(`UBL_OLA_Daily_${month}.csv`,[['Date','Account','Source','OLA (%)','Available','Out of stock','Unknown','Checked','Run status'],...display.flatMap(a=>a.days.filter(d=>d.date>=monthStart&&d.date<=periodEnd).map(d=>[d.date,a.label,a.kind==='catalog'?'Catalog':'Mapped',clean(d.ola_pct),d.available,d.unavailable,d.unknown,d.checked,d.status]))]);
- const exportSummary=()=>download(`UBL_OLA_Accounts_${month}.csv`,[['Account','Source','MTD average (%)','Previous month average (%)','Change (pp)','Valid days','Calendar days','Latest observed date','Available','Out of stock','Unknown'],...ranked.map(a=>[a.label,a.kind==='catalog'?'Catalog':'Mapped',clean(a.mean),clean(a.previousMean),a.delta===null?'':a.delta.toFixed(2),a.validDays,a.possibleDays,a.latest?.date,a.latest?.available,a.latest?.unavailable,a.latest?.unknown])]);
- const monthLabel=new Date(monthStart+'T12:00:00Z').toLocaleDateString('en-US',{month:'long',year:'numeric',timeZone:'UTC'});
- return <div className="olai-root">
-  <section className="olai-toolbar"><div><div className="olai-eyebrow">DIGITAL SHELF / AVAILABILITY INTELLIGENCE</div><h2>OLA performance overview</h2><p>Account trends, week-on-week movement and confirmed stock status from independent OLA scrapes.</p></div><div className="olai-toolbar-actions"><Link className="olai-btn" href="/ola/segments">Brand &amp; BU intelligence</Link><Link className="olai-btn" href="/ola/skus">SKU Intelligence</Link><Link className="olai-btn" href="/ola/branches">PandaMart Branches</Link><Link className="olai-btn" href="/ola/commercial">Commercial Intelligence</Link><button className="olai-btn" aria-label="Previous month" onClick={()=>setMonth(v=>monthShift(v,-1))}><ChevronLeft size={18}/></button><label className="olai-month"><CalendarDays size={16}/><input type="month" aria-label="Analysis month" value={month} max={monthNow()} onChange={e=>e.target.value&&setMonth(e.target.value)}/></label><button className="olai-btn" aria-label="Next month" disabled={month>=monthNow()} onClick={()=>setMonth(v=>monthShift(v,1))}><ChevronRight size={18}/></button><button className="olai-btn" onClick={()=>void load()} disabled={loading}><RefreshCw size={16} className={loading?'olai-spin':''}/>Refresh</button></div></section>
-  {error?<div className="olai-error" role="alert">{error}. The existing account pages are unchanged.</div>:null}
-  {loading&&!response?<div className="olai-loading">Loading availability history…</div>:null}
-  <section className="olai-card olai-filters"><div className="olai-filter-heading"><SlidersHorizontal size={18}/><strong>Account selection</strong><span>{visible.length} selected</span></div><div className="olai-filter-controls"><label className="olai-search"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Filter account names"/></label><label className="olai-toggle"><input type="checkbox" checked={showCatalog} onChange={e=>setShowCatalog(e.target.checked)}/> Include catalog-only accounts</label><button className="olai-linkbutton" onClick={()=>setChosen(selectable.map(a=>a.code))}>Select all</button><button className="olai-linkbutton" onClick={()=>setChosen([])}>Clear</button></div><div className="olai-chips">{selectable.map(a=><button key={a.code} onClick={()=>setChosen(v=>v.includes(a.code)?v.filter(c=>c!==a.code):[...v,a.code])} aria-pressed={chosen.includes(a.code)} className={`olai-chip ${chosen.includes(a.code)?'selected':''}`}><span style={{background:colorFor(a.code,accounts)}} className="olai-dot"/>{a.label}{chosen.includes(a.code)?<Check size={13}/>:null}{a.kind==='catalog'?<small>Catalog</small>:null}</button>)}</div><p className="olai-footnote">Catalog-only accounts are excluded by default to avoid mixing their catalog availability with mapped SKU availability. Turn them on for a separate, clearly labeled comparison.</p></section>
-  <section className="olai-kpis"><article className="olai-kpi"><span>Account-average OLA</span><strong>{fmt(reportAvg)}</strong><small>Equal-weight mean of selected account MTD daily averages</small></article><article className="olai-kpi"><span>Month-on-month change</span><strong>{pairedCurrentAvg!==null&&prevAvg!==null?`${pairedCurrentAvg-prevAvg>0?'+':''}${(pairedCurrentAvg-prevAvg).toFixed(1)} pp`:'—'}</strong><small>vs previous full month · same accounts with valid data</small></article><article className="olai-kpi"><span>Latest confirmed OOS</span><strong>{latestStatus.unavailable.toLocaleString()}</strong><small>{known.toLocaleString()} confirmed observations across latest account snapshots</small></article><article className="olai-kpi"><span>Daily data coverage</span><strong>{possible?fmt(coverage/possible*100):'—'}</strong><small>{coverage} observed account-days / {possible} possible · {populated}/{display.length} accounts with data</small></article></section>
-  <section className="olai-grid-wide"><div className="olai-card olai-trend"><div className="olai-sectionhead"><div><div className="olai-eyebrow">HISTORICAL PERFORMANCE</div><h3>Weekly account comparison</h3><p>Eight Monday–Sunday weeks; each point is an average of observed daily OLA, not a weekly stock snapshot.</p></div><button className="olai-btn" disabled={!display.length} onClick={exportWeekly}><Download size={15}/> CSV</button></div>{weeks.length&&display.length?<TrendChart weeks={weeks} accounts={display}/>:<div className="olai-empty">Select an account to view the trend.</div>}<div className="olai-legend">{display.map(a=><span key={a.code}><i style={{background:colorFor(a.code,display)}}/>{a.label}</span>)}</div></div>
-  <div className="olai-card"><div className="olai-sectionhead"><div><div className="olai-eyebrow">DATA QUALITY</div><h3>Latest stock status</h3><p>Each account's latest snapshot in the selected month.</p></div></div><div className="olai-bigstat"><strong>{known?fmt(known/(known+latestStatus.unknown)*100):'—'}</strong><span>Confirmed-status coverage</span></div><ShareBar {...latestStatus}/><div className="olai-statuses"><div><i className="green"/><span>Available</span><strong>{latestStatus.available.toLocaleString()}</strong></div><div><i className="red"/><span>Out of stock</span><strong>{latestStatus.unavailable.toLocaleString()}</strong></div><div><i className="gray"/><span>Unknown</span><strong>{latestStatus.unknown.toLocaleString()}</strong></div></div><p className="olai-footnote">Unknown is never counted as OOS. Counts are from different accounts' latest observed days, not a synchronized portfolio snapshot.</p></div></section>
-  <section className="olai-card"><div className="olai-sectionhead"><div><div className="olai-eyebrow">ACCOUNT BENCHMARKING</div><h3>Performance leaderboard — {monthLabel}</h3><p>Sorted by average daily OLA. Month-to-month movement is in percentage points.</p></div><div className="olai-actions"><button className="olai-btn" disabled={!ranked.length} onClick={exportSummary}><Download size={15}/> Account CSV</button><button className="olai-btn" disabled={!display.length} onClick={exportDaily}><Download size={15}/> Daily CSV</button></div></div><div className="olai-tablewrap"><table className="olai-table"><thead><tr><th>Account</th><th>MTD OLA</th><th>Performance</th><th>vs previous month</th><th>Valid days</th><th>Latest observed</th><th>OOS</th><th>Unknown</th></tr></thead><tbody>{ranked.map(a=><tr key={a.code}><td><Link href={`/ola/${a.code}`}>{a.label}</Link>{a.kind==='catalog'?<small className="olai-source">Catalog only</small>:null}</td><td className="olai-numeric"><strong>{fmt(a.mean)}</strong></td><td><div className="olai-meter"><span style={{width:`${a.mean??0}%`,background:a.mean===null?'#cbd5e1':a.mean>=80?'#16a085':a.mean>=60?'#e5a23b':'#dc5265'}}/></div></td><td><Delta value={a.delta}/></td><td>{a.validDays}/{a.possibleDays}</td><td>{a.latest?.date??'—'}</td><td className="olai-numeric">{a.latest?.unavailable??'—'}</td><td className="olai-numeric">{a.latest?.unknown??'—'}</td></tr>)}</tbody></table>{!ranked.length?<div className="olai-empty">No accounts selected or matched the search.</div>:null}</div></section>
-  <section className="olai-card"><div className="olai-sectionhead"><div><div className="olai-eyebrow">WEEK-ON-WEEK</div><h3>Weekly change matrix</h3><p>Account weekly averages. A dash means there were no confirmed OLA values that week.</p></div></div><div className="olai-tablewrap"><table className="olai-table olai-matrix"><thead><tr><th>Account</th>{weeks.map(w=><th key={w.key} title={`${w.start} to ${w.end}`}>{w.label}</th>)}</tr></thead><tbody>{display.map(a=><tr key={a.code}><td><Link href={`/ola/${a.code}`}>{a.label}</Link></td>{weeks.map(w=>{const value=w.values[a.code];return <td key={w.key} title={`${w.counts[a.code]} valid observed days`} className={value===null?'olai-missing':value>=80?'olai-good':value>=60?'olai-mid':'olai-bad'}>{fmt(value)}</td>})}</tr>)}</tbody></table></div></section>
-  <p className="olai-method">Methodology: Daily OLA excludes Unknown from its denominator. Latest successful account snapshot is preferred for each day; otherwise the API selects the latest partial snapshot. Weekly/monthly figures are equal-weight averages of valid daily percentages. Missing dates are never treated as zero. Catalog-only and SKU-mapped account metrics have different coverage definitions. No Sales &amp; Stock uploads are mixed into this view.</p>
- </div>;
+  if(segment.length)paths.push(segment);
+  return <svg viewBox={`0 0 ${W} ${H}`} className="olan-chart" aria-label="Daily availability line chart" role="img">
+    {[0,25,50,75,100].map(v=><g key={v}><line x1={L} x2={W-R} y1={y(v)} y2={y(v)} stroke="#dce4f1" strokeDasharray="3 5"/><text x={L-7} y={y(v)+4} fill="#718096" fontSize="10" textAnchor="end">{v}</text></g>)}
+    {paths.map((points,i)=>points.length>1?<polyline key={i} fill="none" stroke="#2563eb" strokeLinecap="round" strokeWidth="3" points={points.join(' ')}/>:null)}
+    {values.map((p,i)=>p?<circle key={i} cx={p.x} cy={p.y} r="4" fill="#2563eb" stroke="white" strokeWidth="1.5"><title>{p.d} · {percent(p.v)}</title></circle>:null)}
+    <text x={L} y={H-4} fill="#718096" fontSize="11">1 {data[0]?.date.slice(0,7)}</text><text x={W-R} y={H-4} textAnchor="end" fill="#718096" fontSize="11">{data.length} days</text>
+  </svg>;
+}
+export default function OlaIntelligenceDashboard(){
+  const[month,setMonth]=useState(todayMonth);
+  const[data,setData]=useState<Payload|null>(null);
+  const[busy,setBusy]=useState(true);
+  const[error,setError]=useState('');
+  const[version,setVersion]=useState(0);
+  const[selected,setSelected]=useState<string[]>(group);
+  const[showCatalog,setShowCatalog]=useState(false);
+  const[search,setSearch]=useState('');
+  const[focused,setFocused]=useState('daraz');
+  const[detail,setDetail]=useState<Chosen>(null);
+  useEffect(()=>{
+    const abort=new AbortController();
+    setBusy(true);setError('');setData(null);setDetail(null);
+    fetch(`/api/ola/overview?month=${encodeURIComponent(month)}`,{signal:abort.signal,cache:'no-store'})
+      .then(async response=>{
+        const body=await response.json().catch(()=>({error:'The API did not return JSON.'}));
+        if(!response.ok)throw new Error(`${body.error??'OLA API unavailable'}${body.hint?` — ${body.hint}`:''}`);
+        if(!Array.isArray(body.accounts)||!Array.isArray(body.dates))throw new Error('The OLA API returned an incomplete report.');
+        setData(body as Payload);
+      })
+      .catch(err=>{if(!abort.signal.aborted)setError(err instanceof Error?err.message:'Unable to fetch monthly OLA.');})
+      .finally(()=>{if(!abort.signal.aborted)setBusy(false)});
+    return ()=>abort.abort();
+  },[month,version]);
+  const all=data?.accounts??[];
+  const available=all.filter(a=>showCatalog||!a.kind);
+  const list=available.filter(a=>a.label.toLowerCase().includes(search.toLowerCase()));
+  const displayed=list.filter(a=>selected.includes(a.code));
+  const previous=new Map(data?.previous?.accounts.map(a=>[a.code,a.avg_ola_pct])??[]);
+  const summary=useMemo(()=>[...displayed].sort((a,b)=>(b.avg_ola_pct??-1)-(a.avg_ola_pct??-1)),[displayed]);
+  const sampled=displayed.filter(a=>a.avg_ola_pct!==null);
+  const average=sampled.length?sampled.reduce((s,a)=>s+(a.avg_ola_pct??0),0)/sampled.length:null;
+  const latestOos=displayed.reduce((s,a)=>s+(a.latest_unavailable??0),0);
+  const validDays=displayed.reduce((s,a)=>s+a.valid_days,0);
+  const eligibleDays=displayed.length*(data?.dates.filter(d=>d<=(data?.as_of??'')).length??0);
+  const selectedCell=detail?all.find(a=>a.code===detail.code)?.rows.find(r=>r.date===detail.date):null;
+  const graphAccount=displayed.find(a=>a.code===focused)??displayed[0];
+  const graphData=graphAccount?.rows.filter(d=>d.date<=(data?.as_of??''))??[];
+  const toggle=(code:string)=>setSelected(old=>old.includes(code)?old.filter(x=>x!==code):[...old,code]);
+  const exportMatrix=()=>{
+    if(!data)return;
+    saveCSV(`UBL_OLA_Monthly_Matrix_${month}.csv`,[
+      ['Date',...displayed.map(a=>a.label)],
+      ...data.dates.map(date=>[date,...displayed.map(a=>a.rows.find(r=>r.date===date)?.ola_pct??null)]),
+      ['Monthly mean (%)',...displayed.map(a=>a.avg_ola_pct)],
+      ['Monthly weighted (%)',...displayed.map(a=>a.weighted_ola_pct)],
+    ]);
+  };
+  const exportDetail=()=>{
+    if(!data)return;
+    saveCSV(`UBL_OLA_Daily_Audit_${month}.csv`,[
+      ['Date','Account','Source','Available','OOS','Unknown','Checked','OLA (%)','Scrape status','Branches'],
+      ...displayed.flatMap(a=>a.rows.filter(d=>d.status!==null).map(d=>[d.date,a.label,a.kind?'Catalog':'SKU observations',d.available,d.unavailable,d.unknown,d.checked,d.ola_pct,d.status,d.branches])),
+    ]);
+  };
+  return <div className="olan-root">
+    <header className="olan-head">
+      <div><span className="olan-eyebrow">UBL · DIGITAL SHELF INTELLIGENCE</span><h1>Monthly Online Availability</h1><p>Daily account snapshots, OOS exceptions and month-to-date performance. Read directly from scraped OLA run history.</p></div>
+      <div className="olan-actions"><button className="olan-icon" aria-label="Previous month" onClick={()=>setMonth(m=>shift(m,-1))}><ArrowLeft size={17}/></button>
+        <label className="olan-month"><CalendarDays size={16}/><input aria-label="Report month" type="month" value={month} max={todayMonth()} onChange={(e:{target:{value:string}})=>e.target.value&&setMonth(e.target.value)}/></label>
+        <button className="olan-icon" aria-label="Next month" disabled={month>=todayMonth()} onClick={()=>setMonth(m=>shift(m,1))}><ArrowRight size={17}/></button>
+        <button className="olan-btn" disabled={busy} onClick={()=>setVersion(v=>v+1)}><RefreshCw size={15}/>{busy?'Loading':'Refresh'}</button>
+      </div>
+    </header>
+    <nav className="olan-shortcuts" aria-label="OLA intelligence sections">
+      <Link href="/ola/segments">Brand &amp; BU</Link><Link href="/ola/skus">SKU Intelligence</Link><Link href="/ola/branches">PandaMart Branches</Link><Link href="/ola/commercial">Commercial Intelligence</Link>
+      <Link href="/central/basepack-compare">Basepack comparison</Link>
+    </nav>
+    {error&&<section className="olan-alert" role="alert"><strong>Couldn't load {labelMonth(month)}.</strong><p>{error}</p><button className="olan-btn" onClick={()=>setVersion(v=>v+1)}>Retry fetching</button></section>}
+    {busy&&<section className="olan-loading">Reading daily OLA history from Supabase…</section>}
+    {data&&<>
+      <div className="olan-meta"><span>Reporting: <strong>{labelMonth(month)}</strong></span><span>Last day in source: <strong>{data.last_observation_date??'No data'}</strong></span><span>Checked through: {data.as_of} (BDT)</span><span>{data.selected_snapshots} selected account-day runs</span></div>
+      <section className="olan-kpis">
+        <article><span>Average account MTD OLA</span><strong>{percent(average)}</strong><small>Equal-weight mean of selected accounts</small></article>
+        <article><span>Accounts reporting</span><strong>{sampled.length}<i> / {displayed.length}</i></strong><small>Accounts with confirmed OLA this month</small></article>
+        <article><span>Latest observed OOS</span><strong>{comma(latestOos)}</strong><small>Sum of each selected account's last snapshot</small></article>
+        <article><span>Account-day coverage</span><strong>{eligibleDays?percent(validDays/eligibleDays*100):'—'}</strong><small>{validDays} valid account-days of {eligibleDays} possible</small></article>
+      </section>
+      <section className="olan-card">
+        <div className="olan-card-title"><div><span className="olan-eyebrow">REPORT CONTROLS</span><h2>Compare your accounts</h2><p>Choose the account columns. Catalog accounts are shown separately when enabled.</p></div><div className="olan-search"><Search size={15}/><input aria-label="Search accounts" value={search} onChange={(e:{target:{value:string}})=>setSearch(e.target.value)} placeholder="Find an account"/></div></div>
+        <div className="olan-toggles"><label><input type="checkbox" checked={showCatalog} onChange={(e:{target:{checked:boolean}})=>setShowCatalog(e.target.checked)}/> Include catalog-only platforms</label><button onClick={()=>setSelected(available.map(a=>a.code))}>Select all</button><button onClick={()=>setSelected([])}>Clear</button></div>
+        <div className="olan-pills">{list.map(a=><button key={a.code} aria-pressed={selected.includes(a.code)} className={selected.includes(a.code)?'active':''} onClick={()=>toggle(a.code)}>{a.label}{a.kind?<small>Catalog</small>:null}</button>)}</div>
+      </section>
+      <section className="olan-card">
+        <div className="olan-card-title"><div><span className="olan-eyebrow">DAILY ACCOUNT MATRIX</span><h2>Availability — {labelMonth(month)}</h2><p>Rows are calendar days. Colors indicate confirmed OLA. Missing scrapes never count as zero.</p></div>
+          <div className="olan-actions"><button className="olan-btn" disabled={!displayed.length} onClick={exportMatrix}><ArrowDownToLine size={16}/> Matrix CSV</button><button className="olan-btn" disabled={!displayed.length} onClick={exportDetail}><ArrowDownToLine size={16}/> Audit CSV</button></div></div>
+        <div className="olan-tablewrap"><table className="olan-matrix"><thead><tr><th className="olan-first">Date</th>{displayed.map(a=><th key={a.code}><Link href={`/ola/${a.code}`}>{a.label}</Link></th>)}</tr></thead><tbody>{data.dates.map(date=><tr key={date}>
+          <th className="olan-first">{labelDay(date)}<small>{date}</small></th>
+          {displayed.map(a=>{const r=a.rows.find(row=>row.date===date);const p=r?.ola_pct??null;const selectedNow=detail?.code===a.code&&detail?.date===date;return <td key={a.code}><button className={`olan-cell ${tone(p)} ${selectedNow?'chosen':''}`} onClick={()=>setDetail({code:a.code,date})} title={`${a.label} · ${date} · ${percent(p)} · ${r?.status??'No scrape'}`}>
+            {p===null?'—':percent(p)}{r?.status==='partial'?<small>partial</small>:null}
+          </button></td>})}</tr>)}</tbody>
+          <tfoot><tr><th className="olan-first">Monthly mean</th>{displayed.map(a=><th key={a.code} className="olan-footer">{percent(a.avg_ola_pct)}</th>)}</tr></tfoot>
+        </table></div>
+        {detail&&<div className="olan-detail"><strong>{all.find(a=>a.code===detail.code)?.label} · {detail.date}</strong><span>OLA: {percent(selectedCell?.ola_pct)}</span><span>Available: {comma(selectedCell?.available)}</span><span>OOS: {comma(selectedCell?.unavailable)}</span><span>Unknown: {comma(selectedCell?.unknown)}</span><span>Scrape: {selectedCell?.status??'No run'}</span><button onClick={()=>setDetail(null)} aria-label="Close details">Close</button></div>}
+        {!displayed.length&&<div className="olan-empty">Select at least one account to display the matrix.</div>}
+      </section>
+      <section className="olan-grid">
+        <div className="olan-card"><div className="olan-card-title"><div><span className="olan-eyebrow">DAY-BY-DAY TREND</span><h2>Availability trend</h2></div><select className="olan-select" value={graphAccount?.code??''} onChange={(e:{target:{value:string}})=>setFocused(e.target.value)}>{displayed.map(a=><option key={a.code} value={a.code}>{a.label}</option>)}</select></div>
+          {graphData.length?<Graph data={graphData}/>:<div className="olan-empty">No selected account with plotted data.</div>}
+          <p className="olan-note">Daily gaps mean no confirmed availability percentage. No interpolation.</p>
+        </div>
+        <div className="olan-card"><div className="olan-card-title"><div><span className="olan-eyebrow">DATA QUALITY</span><h2>Latest account snapshots</h2></div></div><div className="olan-quality">{displayed.map(a=><div key={a.code}><Link href={`/ola/${a.code}`}>{a.label}</Link><strong>{a.latest_date??'No run'}</strong><span>{a.valid_days}/{a.observed_days} valid days</span></div>)}</div></div>
+      </section>
+      <section className="olan-card"><div className="olan-card-title"><div><span className="olan-eyebrow">ACCOUNT BENCHMARKING</span><h2>Monthly performance</h2><p>Daily averages are not the same as weighted MTD OLA.</p></div></div>
+      <div className="olan-tablewrap"><table className="olan-report"><thead><tr><th>Account</th><th>Daily mean</th><th>Weighted MTD</th><th>Previous month</th><th>Change</th><th>Valid days</th><th>Last observed</th><th>OOS (latest)</th></tr></thead><tbody>{summary.map(a=>{const prev=previous.get(a.code)??null;const delta=a.avg_ola_pct!==null&&prev!==null?a.avg_ola_pct-prev:null;return <tr key={a.code}>
+        <td><Link href={`/ola/${a.code}`}>{a.label}</Link>{a.kind?<small>Catalog only</small>:null}</td><td><strong>{percent(a.avg_ola_pct)}</strong></td><td>{percent(a.weighted_ola_pct)}</td><td>{percent(prev)}</td><td className={delta!==null&&delta<0?'olan-down':'olan-up'}>{delta===null?'—':`${delta>0?'+':''}${delta.toFixed(1)} pp`}</td><td>{a.valid_days}/{a.observed_days}</td><td>{a.latest_date??'—'}</td><td>{comma(a.latest_unavailable)}</td>
+      </tr>})}</tbody></table></div>{!summary.length&&<div className="olan-empty">Select accounts to see their performance.</div>}</section>
+      <p className="olan-method"><BarChart3 size={16}/> {data.methodology} For the basepack aggregation, use the separate Basepack OLA Checker.</p>
+    </>}
+  </div>;
 }

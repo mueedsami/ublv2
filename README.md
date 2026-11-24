@@ -1,19 +1,21 @@
-# Enlistment Bulk Hide — changed files only
+# UBL Enlistment – optional account-specific product URLs
 
-Replace exactly these four paths in your Next.js application:
-
+Replace these files from the ZIP into the corresponding project paths:
 - `components/EnlistmentPanel.tsx`
+- `app/globals.css`
 - `lib/enlistment-data.ts`
 - `app/api/enlistment/targets/route.ts`
-- `app/globals.css`
 
-## Bulk actions
+Behavior:
+- When changing N/D to Enlisted from the quick capsule, the optional URL editor appears. Save & Enlist or Skip URL.
+- In Manage drawer, switching to Enlisted prompts for the optional URL; Cancel/empty skips.
+- URL can be edited or cleared later in Manage > account progress > URL.
+- View product opens the stored URL in a new tab.
+- HTTP(S) URL is validated client- and server-side.
+- Stored on `enlistment_targets.account_fields.product_url` for the specific account; no schema migration required.
+- Existing URL persists through status transitions unless explicitly cleared with Save URL.
+- Historical import button is removed from the visible UI; no historical database rows are deleted.
 
-- Select individual product rows (or header checkbox for all 50 on current page), then **Hide N selected**.
-- **Hide all N matching** hides all products matching search/account/status filters across every page. Requires confirmation, max 5,000 per action.
-- Switch Product visibility to **Hidden products**, then use equivalent Restore actions.
-- Filters are applied server-side before selecting product IDs. The API checks the count and distinct IDs before making changes.
-- Existing Supabase `enlistment_products.active` flag is updated. No product or account row is deleted. This visibility setting is shared by all dashboard users.
-- The server updates in batches of 200; an interrupted/failed multi-batch request may have partially updated records. Check the hidden view if an error occurs.
+No Supabase database data or schema was changed by preparing this package.
 
-Test on local Next.js before deployment. No migration required.
+After replacing files run `npm run build` and verify in the UI with a test product before using live data.
